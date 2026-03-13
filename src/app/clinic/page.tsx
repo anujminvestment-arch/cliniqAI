@@ -22,8 +22,8 @@ import {
 } from "@/lib/mock-data";
 
 const statusColors: Record<string, string> = {
-  confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  "in-progress": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  confirmed: "bg-primary/10 text-primary dark:bg-primary/15",
+  "in-progress": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   waiting: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   cancelled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
@@ -41,42 +41,48 @@ export default function ClinicDashboard() {
         <p className="text-muted-foreground">SmileCare Dental — Today&apos;s overview</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Today's Appointments"
           value={clinicDashboard.todayAppointments}
           icon={CalendarDays}
           trend={{ value: 12, positive: true }}
+          color="primary"
         />
         <StatCard
           title="Queue Length"
           value={clinicDashboard.queueLength}
           icon={ListOrdered}
           description="Currently waiting"
+          color="amber"
         />
         <StatCard
           title="Avg Wait Time"
           value={clinicDashboard.avgWaitTime}
           icon={Clock}
           trend={{ value: 8, positive: false }}
+          color="rose"
         />
         <StatCard
           title="Completed Today"
           value={clinicDashboard.completedToday}
           icon={CheckCircle2}
           trend={{ value: 5, positive: true }}
+          color="emerald"
         />
         <StatCard
           title="Today's Revenue"
           value={`₹${clinicDashboard.revenue.toLocaleString("en-IN")}`}
           icon={IndianRupee}
           trend={{ value: 18, positive: true }}
+          color="accent"
         />
         <StatCard
           title="Pending Follow-ups"
           value={clinicDashboard.followUps}
           icon={PhoneForwarded}
           description="Due this week"
+          color="violet"
         />
       </div>
 
@@ -88,7 +94,7 @@ export default function ClinicDashboard() {
           <CardContent>
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyAppointments} barSize={32}>
+                <BarChart data={weeklyAppointments} barSize={28}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
                   <XAxis
                     dataKey="day"
@@ -114,7 +120,7 @@ export default function ClinicDashboard() {
                     dataKey="count"
                     name="Appointments"
                     fill="var(--primary)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -156,8 +162,8 @@ export default function ClinicDashboard() {
                   <div
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                       item.status === "in-progress"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-accent/10 text-accent"
+                        : "bg-primary text-primary-foreground"
                     }`}
                   >
                     {item.position}
@@ -187,7 +193,7 @@ export default function ClinicDashboard() {
                 key={apt.id}
                 className="flex items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-muted/50"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted font-semibold text-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold text-sm">
                   {apt.time.split(" ")[0]}
                   <span className="text-[10px] ml-0.5">{apt.time.split(" ")[1]}</span>
                 </div>

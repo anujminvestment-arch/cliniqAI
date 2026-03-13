@@ -38,14 +38,14 @@ export default function PatientDashboard() {
       </div>
 
       {/* Queue Status Alert */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="flex items-center gap-4">
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="flex flex-wrap items-center gap-4 pt-5">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
                 {queueStatus.position}
               </div>
-              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+              <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 animate-glow-pulse">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
               </span>
@@ -86,10 +86,9 @@ export default function PatientDashboard() {
                     </div>
                     <div>
                       <p className="font-medium">{apt.doctor}</p>
-                      <p className="text-sm text-muted-foreground">{apt.type}</p>
                     </div>
                   </div>
-                  <Badge variant="secondary">{apt.type}</Badge>
+                  <Badge variant="secondary">Confirmed</Badge>
                 </div>
                 <Separator />
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -121,7 +120,7 @@ export default function PatientDashboard() {
         <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Link href="/patient/book">
-            <Card className="cursor-pointer transition-colors hover:bg-muted/50">
+            <Card className="cursor-pointer card-hover">
               <CardContent className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                   <CalendarPlus className="h-6 w-6 text-primary" />
@@ -134,10 +133,10 @@ export default function PatientDashboard() {
             </Card>
           </Link>
           <Link href="/patient/records">
-            <Card className="cursor-pointer transition-colors hover:bg-muted/50">
+            <Card className="cursor-pointer card-hover">
               <CardContent className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <FileText className="h-6 w-6 text-primary" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
+                  <FileText className="h-6 w-6 text-accent" />
                 </div>
                 <div>
                   <p className="font-medium">View Records</p>
@@ -147,10 +146,10 @@ export default function PatientDashboard() {
             </Card>
           </Link>
           <Link href="/patient/billing">
-            <Card className="cursor-pointer transition-colors hover:bg-muted/50">
+            <Card className="cursor-pointer card-hover">
               <CardContent className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <CreditCard className="h-6 w-6 text-primary" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-violet-500/10">
+                  <CreditCard className="h-6 w-6 text-violet-500" />
                 </div>
                 <div>
                   <p className="font-medium">Pay Invoice</p>
@@ -177,8 +176,8 @@ export default function PatientDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                    <Pill className="h-5 w-5 text-primary" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+                    <Pill className="h-5 w-5 text-accent" />
                   </div>
                   <div>
                     <CardTitle className="text-base">{latestPrescription.doctor}</CardTitle>

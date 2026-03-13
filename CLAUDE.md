@@ -14,34 +14,65 @@ Multi-tenant AI-powered clinic management SaaS platform. Doctors and clinics aut
 
 ## Core Modules
 
-- **AI Voice Receptionist** — Answer calls, book appointments, provide availability/queue status
-- **Appointment Management** — CRUD appointments, consultation slots, multi-doctor scheduling
-- **Queue Management** — Real-time queue length, wait time, position, doctor availability
+### Phase 1 — MVP+ ("Clinic Can Operate")
+- **Auth & RBAC** — Authentication, 7+ roles, granular permissions per clinic
+- **Multi-Tenant Engine** — Tenant isolation, clinic provisioning, data boundaries
+- **AI Voice Receptionist** — Answer calls, book appointments, queue status, smart escalation, after-hours
+- **Appointment Management** — CRUD, consultation slots, multi-doctor scheduling, buffer time
+- **Queue Management** — Real-time queue, wait times, no-show detection, priority rules
 - **Multi-Clinic Management** — Branches, timings, doctor assignments, automatic routing
 - **Patient Registration** — AI phone, QR code, invite link, manual entry
-- **Patient Portal** — Appointments, history, prescriptions, invoices, payments, queue tracking
-- **Billing & Transactions** — Invoices, payments, receipts, history
-- **Automated Follow-Ups** — SMS reminders, AI follow-up calls, appointment suggestions
-- **AI Symptom Intake** — Pre-consultation symptom capture, structured doctor summary
-- **AI Doctor Assistant** — Diagnosis suggestions, recommendations (not final diagnosis)
+- **Patient Portal** — Appointments, history, prescriptions, invoices, payments, queue tracking, search
+- **Digital Prescriptions** — Doctor generates Rx, e-signature, WhatsApp delivery, print-friendly
+- **Billing & Online Payments** — Invoices, Razorpay/UPI, receipts, payment reminders
+- **WhatsApp Notifications** — Appointment confirmations, queue updates, payment reminders, Rx delivery
+- **Notification Engine** — WhatsApp (primary), SMS (fallback), push, email
+- **Compliance Module** — DPDPA consent capture, audit logs, data export
+
+### Phase 2 — Growth ("Better Than Manual")
+- **WhatsApp Chatbot** — Full conversational AI: book, cancel, queue, pay, prescriptions
+- **Telemedicine** — Video consultation (Jitsi/Daily/Twilio integration)
+- **Waitlist Manager** — Auto-fill cancelled slots, priority ordering
+- **Patient Feedback & NPS** — Post-visit surveys, Google Review prompts
+- **Multi-Language (i18n)** — Hindi + regional languages
+- **Medication Reminders** — Push + WhatsApp adherence reminders
+- **Clinic Analytics Dashboard** — Revenue, no-shows, utilization, satisfaction, benchmarking
+- **Automated Follow-Ups** — SMS reminders, AI follow-up calls, recurring appointments
+
+### Phase 3 — Scale ("Why Clinics Pay Premium")
+- **AI Triage Bot** — Pre-booking symptom assessment, urgency classification
+- **Family Health Hub** — Multi-member profiles, shared calendar, unified billing
+- **Digital Health Card** — QR-based patient ID, wallet integration
+- **Lab/Test Integration** — Test ordering, result delivery
+- **Campaign Engine** — Health campaigns, re-engagement, birthday wishes
+- **Referral Manager** — Doctor-to-specialist referrals with tracking
+- **Staff Scheduling** — Shift management, attendance tracking
+
+### Phase 4 — Moat ("Can't Switch Away")
+- **AI Clinical Notes** — Ambient documentation from consultation
+- **Clinic Marketplace** — Patient discovery, online booking, ratings
+- **Insurance Integration** — Verification, pre-auth, claims (partner model)
+- **Enterprise Features** — SSO, advanced audit, SLA
 
 ## User Roles
 
-| Role         | Access                                                    |
-|--------------|-----------------------------------------------------------|
-| Doctor       | Manage clinics, patient records, configure follow-ups     |
-| Clinic Staff | Register patients, schedule appointments, manage queue    |
-| Patient      | Book appointments, view records, track queue, transactions|
+| Role              | Access                                                                        |
+|-------------------|-------------------------------------------------------------------------------|
+| Super Admin       | Platform management, clinic onboarding, global settings, compliance           |
+| Clinic Owner      | Full clinic config, staff management, billing, analytics, AI settings         |
+| Doctor            | Manage patients, consultations, prescriptions, follow-ups, view analytics     |
+| Clinic Staff      | Register patients, schedule appointments, manage queue, billing               |
+| Nurse             | Patient intake, vitals, queue management, prescription assistance             |
+| Receptionist      | Phone/WhatsApp handling, appointment booking, patient check-in                |
+| Patient           | Book appointments, view records, track queue, pay bills, family management    |
+| Caregiver         | Manage family members' appointments and records (delegated access)            |
 
-## MVP Scope
+## Scope by Phase
 
-1. Multi-tenant clinic system
-2. Appointment management
-3. Queue tracking
-4. AI call booking
-5. Doctor dashboard
-6. Patient portal
-7. Billing system
+### Phase 1 (MVP+): Multi-tenant system, appointments, queue, AI voice, doctor dashboard, patient portal, billing + payments, digital prescriptions, WhatsApp notifications, RBAC, compliance
+### Phase 2 (Growth): WhatsApp chatbot, telemedicine, waitlist, feedback/NPS, i18n, medication reminders, clinic analytics
+### Phase 3 (Scale): AI triage, family profiles, digital health card, lab integration, campaigns, referrals, staff scheduling
+### Phase 4 (Moat): AI clinical notes, marketplace, insurance, enterprise features
 
 ## Architecture Model
 
