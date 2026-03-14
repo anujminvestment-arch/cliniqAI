@@ -1,24 +1,77 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { useState } from "react";
 import {
-  Bar,
-  BarChart,
-  Pie,
-  PieChart,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { Button } from "@/components/ui/button";
+  CreditCard,
+  Search,
+  IndianRupee,
+  Users,
+  TrendingDown,
+  Clock,
+  MoreHorizontal,
+  Eye,
+  Pencil,
+  Ban,
+  RefreshCcw,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { subscriptionPlans } from "@/lib/mock-data";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { StatCard } from "@/components/shared/stat-card";
+
+// ---------------------------------------------------------------------------
+// Inline mock data
+// ---------------------------------------------------------------------------
+
+interface Subscription {
+  id: string;
+  clinicName: string;
+  plan: "Basic" | "Pro" | "Enterprise";
+  status: "Active" | "Trial" | "Expired" | "Cancelled";
+  startDate: string;
+  nextBilling: string;
+  amount: number;
+}
+
+const subscriptions: Subscription[] = [
+  { id: "SUB-001", clinicName: "SmileCare Dental", plan: "Pro", status: "Active", startDate: "2025-08-15", nextBilling: "2026-04-15", amount: 2499 },
+  { id: "SUB-002", clinicName: "HealthFirst Clinic", plan: "Enterprise", status: "Active", startDate: "2025-06-01", nextBilling: "2026-04-01", amount: 4999 },
+  { id: "SUB-003", clinicName: "PediaCare Children's Hospital", plan: "Basic", status: "Trial", startDate: "2026-03-01", nextBilling: "2026-03-31", amount: 999 },
+  { id: "SUB-004", clinicName: "DermGlow Skin Centre", plan: "Pro", status: "Active", startDate: "2025-11-10", nextBilling: "2026-04-10", amount: 2499 },
+  { id: "SUB-005", clinicName: "BrightEyes Vision", plan: "Enterprise", status: "Expired", startDate: "2025-01-20", nextBilling: "—", amount: 4999 },
+  { id: "SUB-006", clinicName: "OrthoCure Physiotherapy", plan: "Basic", status: "Active", startDate: "2025-09-05", nextBilling: "2026-04-05", amount: 999 },
+  { id: "SUB-007", clinicName: "MindWell Psychology", plan: "Pro", status: "Cancelled", startDate: "2025-07-12", nextBilling: "—", amount: 2499 },
+  { id: "SUB-008", clinicName: "NutriLife Wellness", plan: "Basic", status: "Trial", startDate: "2026-02-20", nextBilling: "2026-03-20", amount: 999 },
+  { id: "SUB-009", clinicName: "HeartBeat Cardiology", plan: "Enterprise", status: "Active", startDate: "2025-04-18", nextBilling: "2026-04-18", amount: 4999 },
+  { id: "SUB-010", clinicName: "ClearPath ENT", plan: "Pro", status: "Active", startDate: "2025-10-22", nextBilling: "2026-04-22", amount: 2499 },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 const formatCurrency = (value: number): string =>
   new Intl.NumberFormat("en-IN", {
@@ -27,174 +80,226 @@ const formatCurrency = (value: number): string =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const planDistribution = subscriptionPlans.map((plan) => ({
-  name: plan.name,
-  value: plan.clinics,
-}));
-
-const revenueByPlan = subscriptionPlans.map((plan) => ({
-  name: plan.name,
-  revenue: plan.price * plan.clinics,
-}));
-
-const PIE_COLORS = ["#0891B2", "#059669", "#7C3AED"];
-
-const planHighlight: Record<string, boolean> = {
-  Basic: false,
-  Professional: true,
-  Enterprise: false,
+const planColors: Record<string, string> = {
+  Basic: "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400",
+  Pro: "bg-primary/10 text-primary",
+  Enterprise: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
 };
 
-const planBadge: Record<string, string> = {
-  Professional: "Most Popular",
+const statusColors: Record<string, string> = {
+  Active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  Trial: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  Expired: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  Cancelled: "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400",
 };
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function SubscriptionsPage() {
+  const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filtered = subscriptions.filter((sub) => {
+    const matchesSearch =
+      sub.clinicName.toLowerCase().includes(search.toLowerCase()) ||
+      sub.id.toLowerCase().includes(search.toLowerCase());
+    const matchesPlan = planFilter === "all" || sub.plan === planFilter;
+    const matchesStatus = statusFilter === "all" || sub.status === statusFilter;
+    return matchesSearch && matchesPlan && matchesStatus;
+  });
+
+  // Stat computations
+  const totalSubscribers = subscriptions.length;
+  const monthlyRevenue = subscriptions
+    .filter((s) => s.status === "Active" || s.status === "Trial")
+    .reduce((sum, s) => sum + s.amount, 0);
+  const activeTrials = subscriptions.filter((s) => s.status === "Trial").length;
+  const churnRate =
+    ((subscriptions.filter((s) => s.status === "Cancelled" || s.status === "Expired").length /
+      totalSubscribers) *
+      100).toFixed(1);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Subscriptions</h1>
         <p className="text-muted-foreground">
-          Manage subscription plans and view subscriber analytics
+          Manage clinic subscription plans and billing
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {subscriptionPlans.map((plan, index) => (
-          <Card
-            key={plan.name}
-            className={
-              planHighlight[plan.name]
-                ? "border-primary shadow-md relative"
-                : "relative"
-            }
-          >
-            {planBadge[plan.name] && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-primary text-primary-foreground">
-                  {planBadge[plan.name]}
-                </Badge>
-              </div>
-            )}
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-lg">{plan.name}</CardTitle>
-              <div className="mt-2">
-                <span className="text-3xl font-bold">{formatCurrency(plan.price)}</span>
-                <span className="text-muted-foreground text-sm">/month</span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {plan.clinics} active clinics
-              </p>
-            </CardHeader>
-            <CardContent>
-              <Separator className="mb-4" />
-              <ul className="space-y-3">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-primary shrink-0" />
-                    <span>{feature}</span>
-                  </li>
+      {/* Stat Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Subscribers"
+          value={totalSubscribers}
+          icon={Users}
+          color="primary"
+          trend={{ value: 8, positive: true }}
+          delay={0}
+        />
+        <StatCard
+          title="Monthly Revenue"
+          value={formatCurrency(monthlyRevenue)}
+          icon={IndianRupee}
+          color="emerald"
+          trend={{ value: 12, positive: true }}
+          delay={75}
+        />
+        <StatCard
+          title="Active Trials"
+          value={activeTrials}
+          icon={Clock}
+          color="amber"
+          description="Trials expiring this month"
+          delay={150}
+        />
+        <StatCard
+          title="Churn Rate"
+          value={`${churnRate}%`}
+          icon={TrendingDown}
+          color="rose"
+          trend={{ value: 2.1, positive: false }}
+          delay={225}
+        />
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search clinics..."
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={planFilter} onValueChange={(v) => setPlanFilter(v ?? "all")}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Plan" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Plans</SelectItem>
+            <SelectItem value="Basic">Basic</SelectItem>
+            <SelectItem value="Pro">Pro</SelectItem>
+            <SelectItem value="Enterprise">Enterprise</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="Active">Active</SelectItem>
+            <SelectItem value="Trial">Trial</SelectItem>
+            <SelectItem value="Expired">Expired</SelectItem>
+            <SelectItem value="Cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Subscriptions Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-primary" />
+            Clinic Subscriptions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Clinic Name</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead>Next Billing</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-[60px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((sub) => (
+                  <TableRow key={sub.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{sub.clinicName}</p>
+                        <p className="text-xs text-muted-foreground">{sub.id}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={planColors[sub.plan]}>
+                        {sub.plan}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={statusColors[sub.status]}>
+                        {sub.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {sub.startDate}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {sub.nextBilling}
+                    </TableCell>
+                    <TableCell className="text-right font-medium whitespace-nowrap">
+                      {formatCurrency(sub.amount)}/mo
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button variant="ghost" size="icon-sm" className="cursor-pointer" />
+                          }
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="cursor-pointer">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="cursor-pointer">
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Change Plan
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {sub.status === "Cancelled" || sub.status === "Expired" ? (
+                            <DropdownMenuItem className="cursor-pointer">
+                              <RefreshCcw className="mr-2 h-4 w-4" />
+                              Reactivate
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="cursor-pointer" variant="destructive">
+                              <Ban className="mr-2 h-4 w-4" />
+                              Cancel Subscription
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </ul>
-              <Button
-                variant={planHighlight[plan.name] ? "default" : "outline"}
-                className="w-full mt-6 cursor-pointer"
-              >
-                {planHighlight[plan.name] ? "Current Default" : "View Details"}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">
-              Plan Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={planDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={4}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {planDistribution.map((_, i) => (
-                      <Cell key={`cell-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      color: "var(--popover-foreground)",
-                    }}
-                    formatter={(value: number) => [`${value} clinics`, "Subscribers"]}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">
-              Revenue by Plan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueByPlan}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-xs"
-                    tick={{ fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    className="text-xs"
-                    tick={{ fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${(v / 100000).toFixed(1)}L`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      color: "var(--popover-foreground)",
-                    }}
-                    formatter={(value: number) => [formatCurrency(value), "Revenue"]}
-                  />
-                  <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                    {revenueByPlan.map((_, i) => (
-                      <Cell key={`bar-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      No subscriptions match your filters.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

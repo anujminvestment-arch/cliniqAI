@@ -51,7 +51,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div className="animate-fade-in-up">
-        <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
           Platform overview and key metrics
         </p>
@@ -62,6 +62,7 @@ export default function AdminDashboard() {
           title="Total Clinics"
           value={platformStats.totalClinics}
           icon={Building2}
+          color="primary"
           trend={{ value: 12, positive: true }}
           delay={0}
         />
@@ -69,6 +70,7 @@ export default function AdminDashboard() {
           title="Active Patients"
           value={platformStats.activePatients.toLocaleString()}
           icon={Users}
+          color="accent"
           trend={{ value: 8, positive: true }}
           delay={75}
         />
@@ -76,6 +78,7 @@ export default function AdminDashboard() {
           title="Total Appointments"
           value={platformStats.totalAppointments.toLocaleString()}
           icon={CalendarCheck}
+          color="violet"
           trend={{ value: 5, positive: true }}
           delay={150}
         />
@@ -83,6 +86,7 @@ export default function AdminDashboard() {
           title="Monthly Revenue"
           value={formatCurrency(platformStats.monthlyRevenue)}
           icon={IndianRupee}
+          color="emerald"
           trend={{ value: 14, positive: true }}
           delay={225}
         />
@@ -90,6 +94,7 @@ export default function AdminDashboard() {
           title="AI Calls Handled"
           value={platformStats.aiCallsHandled.toLocaleString()}
           icon={Phone}
+          color="amber"
           trend={{ value: 18, positive: true }}
           delay={300}
         />
@@ -97,6 +102,7 @@ export default function AdminDashboard() {
           title="Avg Call Duration"
           value={platformStats.avgCallDuration}
           icon={Clock}
+          color="rose"
           description="Average across all AI calls"
           delay={375}
         />
@@ -113,8 +119,8 @@ export default function AdminDashboard() {
                 <AreaChart data={revenueData}>
                   <defs>
                     <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
+                      <stop offset="5%" stopColor="oklch(0.46 0.20 264)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="oklch(0.46 0.20 264)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -144,7 +150,7 @@ export default function AdminDashboard() {
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="#0891B2"
+                    stroke="var(--primary)"
                     strokeWidth={2}
                     fill="url(#revenueGradient)"
                   />
@@ -187,7 +193,7 @@ export default function AdminDashboard() {
                   />
                   <Bar
                     dataKey="clinics"
-                    fill="#059669"
+                    fill="var(--accent)"
                     radius={[4, 4, 0, 0]}
                   />
                 </BarChart>
@@ -202,6 +208,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-base font-semibold">Recent Clinics</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -233,6 +240,7 @@ export default function AdminDashboard() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
