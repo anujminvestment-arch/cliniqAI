@@ -50,11 +50,19 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="animate-fade-in-up">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Platform overview and key metrics
-        </p>
+      <div className="welcome-banner rounded-xl p-5 animate-fade-in-up">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Welcome back, Admin</h1>
+            <p className="text-muted-foreground mt-0.5">
+              Here&apos;s what&apos;s happening across your platform today
+            </p>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse-soft" />
+            All systems operational
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,9 +117,9 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Revenue Trend</CardTitle>
+            <CardTitle className="text-base font-semibold section-header">Revenue Trend</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -160,9 +168,9 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Clinic Growth</CardTitle>
+            <CardTitle className="text-base font-semibold section-header">Clinic Growth</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -203,13 +211,13 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Recent Clinics</CardTitle>
+          <CardTitle className="text-base font-semibold section-header">Recent Clinics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-          <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

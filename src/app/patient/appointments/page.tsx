@@ -21,7 +21,7 @@ export default function AppointmentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Appointments</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">My Appointments</h1>
         <p className="text-muted-foreground">View and manage your appointments</p>
       </div>
 

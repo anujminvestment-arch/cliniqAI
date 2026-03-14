@@ -20,7 +20,7 @@ export default function QueuePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Live Queue</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Live Queue</h1>
           <p className="text-muted-foreground">Real-time patient queue management</p>
         </div>
         <Button variant="outline" className="cursor-pointer w-fit">

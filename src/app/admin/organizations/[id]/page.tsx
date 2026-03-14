@@ -109,7 +109,7 @@ export default function OrganizationDetailPage({
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Organization Details</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Organization Details</h1>
           <p className="text-muted-foreground">Manage organization, clinics, and subscription</p>
         </div>
       </div>
@@ -329,7 +329,7 @@ export default function OrganizationDetailPage({
         <TabsContent value="activity" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Recent Activity</CardTitle>
+              <CardTitle className="text-base section-header">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="relative pl-6 space-y-6">
@@ -352,7 +352,7 @@ export default function OrganizationDetailPage({
         <TabsContent value="subscription" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Subscription Details</CardTitle>
+              <CardTitle className="text-base section-header">Subscription Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">

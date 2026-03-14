@@ -63,7 +63,7 @@ export default function ConsultationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Consultations</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Consultations</h1>
         <p className="text-muted-foreground">View consultation records and AI transcript summaries</p>
       </div>
 

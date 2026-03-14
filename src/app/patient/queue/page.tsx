@@ -28,7 +28,7 @@ export default function QueueStatusPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Queue Status</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Queue Status</h1>
         <p className="text-muted-foreground">Track your position in the queue</p>
       </div>
 

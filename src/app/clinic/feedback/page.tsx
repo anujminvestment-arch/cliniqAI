@@ -110,7 +110,7 @@ export default function FeedbackPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Patient Feedback</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Patient Feedback</h1>
         <p className="text-muted-foreground">Ratings, reviews, and patient satisfaction insights</p>
       </div>
 
@@ -143,7 +143,7 @@ export default function FeedbackPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">All Feedback</CardTitle>
@@ -184,8 +184,8 @@ export default function FeedbackPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Patient Name</TableHead>

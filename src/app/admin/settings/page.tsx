@@ -32,7 +32,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Settings</h1>
         <p className="text-muted-foreground">
           Configure platform settings and preferences
         </p>
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         <TabsContent value="general">
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
+              <CardTitle className="section-header">General Settings</CardTitle>
               <CardDescription>
                 Manage platform-wide configuration
               </CardDescription>
@@ -112,7 +112,7 @@ export default function SettingsPage() {
         <TabsContent value="security">
           <Card>
             <CardHeader>
-              <CardTitle>Security Settings</CardTitle>
+              <CardTitle className="section-header">Security Settings</CardTitle>
               <CardDescription>
                 Configure authentication and access policies
               </CardDescription>
@@ -178,7 +178,7 @@ export default function SettingsPage() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Settings</CardTitle>
+              <CardTitle className="section-header">Notification Settings</CardTitle>
               <CardDescription>
                 Configure how and when notifications are sent
               </CardDescription>

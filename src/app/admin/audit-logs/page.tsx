@@ -73,7 +73,7 @@ export default function AuditLogsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Audit Logs</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Audit Logs</h1>
           <p className="text-muted-foreground">Track all system activity and user actions</p>
         </div>
         <Button variant="outline" className="cursor-pointer w-fit">
@@ -82,10 +82,10 @@ export default function AuditLogsPage() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 section-header">
               <Shield className="h-4 w-4 text-primary" />
               Activity Log
             </CardTitle>
@@ -114,7 +114,7 @@ export default function AuditLogsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Timestamp</TableHead>

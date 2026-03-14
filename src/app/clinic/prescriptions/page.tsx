@@ -86,7 +86,7 @@ export default function PrescriptionsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Prescriptions</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Prescriptions</h1>
           <p className="text-muted-foreground">Manage and share patient prescriptions</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -158,7 +158,7 @@ export default function PrescriptionsPage() {
         <StatCard title="Sent to Patients" value={sentCount} icon={Send} color="accent" />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">All Prescriptions</CardTitle>
@@ -187,7 +187,7 @@ export default function PrescriptionsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Rx ID</TableHead>

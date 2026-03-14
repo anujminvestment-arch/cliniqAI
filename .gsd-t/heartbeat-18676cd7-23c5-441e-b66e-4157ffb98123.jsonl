@@ -1,0 +1,18 @@
+{"ts":"2026-03-13T11:31:40.321Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"session_start","data":{"source":"startup","model":"claude-opus-4-6"}}
+{"ts":"2026-03-13T11:32:56.790Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Skill","agent_id":null,"data":{}}
+{"ts":"2026-03-13T11:33:01.365Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"docs/requirements.md"}}
+{"ts":"2026-03-13T11:33:01.981Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"docs/architecture.md"}}
+{"ts":"2026-03-13T11:33:02.344Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"docs/workflows.md"}}
+{"ts":"2026-03-13T11:33:02.445Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"CLAUDE.md"}}
+{"ts":"2026-03-13T11:33:02.932Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"README.md"}}
+{"ts":"2026-03-13T11:33:07.162Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"src/lib/mock-data.ts"}}
+{"ts":"2026-03-13T11:33:07.681Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"src/app/page.tsx"}}
+{"ts":"2026-03-13T11:33:08.448Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"Glob","agent_id":null,"data":{"pattern":"src/app/**/*.tsx"}}
+{"ts":"2026-03-13T11:33:13.998Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"ToolSearch","agent_id":null,"data":{}}
+{"ts":"2026-03-13T11:33:24.904Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"WebSearch","agent_id":null,"data":{"query":"clinic management platform features patients want 2026"}}
+{"ts":"2026-03-13T11:33:25.115Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"WebSearch","agent_id":null,"data":{"query":"AI voice receptionist healthcare appointment booking market trends"}}
+{"ts":"2026-03-13T11:33:26.660Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"WebSearch","agent_id":null,"data":{"query":"AI clinic management software SaaS competitors 2026"}}
+{"ts":"2026-03-13T11:33:38.606Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"WebSearch","agent_id":null,"data":{"query":"patient engagement retention features healthcare SaaS WhatsApp integration India"}}
+{"ts":"2026-03-13T11:33:39.699Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"tool","tool":"WebSearch","agent_id":null,"data":{"query":"telehealth telemedicine integration clinic management must have features 2026"}}
+{"ts":"2026-03-13T11:35:41.735Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"session_stop"}
+{"ts":"2026-03-13T11:36:41.883Z","sid":"18676cd7-23c5-441e-b66e-4157ffb98123","evt":"notification","data":{"message":"Claude is waiting for your input"}}

@@ -84,7 +84,7 @@ export default function PatientLayout({
     <SidebarProvider>
       <Sidebar variant="sidebar" collapsible="icon">
         <SidebarHeader className="p-3">
-          <Link href="/patient" className="flex items-center gap-2.5 cursor-pointer rounded-xl sidebar-gradient-header p-3 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25">
+          <Link href="/patient" className="flex items-center gap-2.5 cursor-pointer rounded-xl gradient-patient p-3 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20 backdrop-blur font-bold text-sm text-white">
               <Activity className="h-4 w-4" />
             </div>
@@ -208,7 +208,7 @@ export default function PatientLayout({
             </DropdownMenu>
           </div>
         </header>
-        <div className="flex-1 p-6 gradient-mesh min-h-screen">
+        <div className="flex-1 p-6 gradient-mesh min-h-screen scrollbar-thin">
           {children}
         </div>
       </SidebarInset>

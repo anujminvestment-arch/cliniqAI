@@ -79,7 +79,7 @@ export default function BillingPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Billing</h1>
           <p className="text-muted-foreground">Invoices, payments, and revenue tracking</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -159,12 +159,12 @@ export default function BillingPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle className="text-base">Invoices</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Invoice #</TableHead>

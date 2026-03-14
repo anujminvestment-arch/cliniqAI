@@ -82,7 +82,7 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Organization Onboarding</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Organization Onboarding</h1>
         <p className="text-muted-foreground">Enroll new organizations and review pending applications</p>
       </div>
 
@@ -385,16 +385,16 @@ export default function OnboardingPage() {
 
         {/* Applications Tab */}
         <TabsContent value="applications" className="mt-4">
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2 section-header">
                 <FileText className="h-4 w-4 text-primary" />
                 Enrollment Applications
               </CardTitle>
               <CardDescription>Review and approve pending organization enrollments</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Organization</TableHead>

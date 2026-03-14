@@ -11,6 +11,7 @@ import {
   User,
   Stethoscope,
   Pill,
+  Heart,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,9 +33,16 @@ export default function PatientDashboard() {
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Welcome back, Vikram</h1>
-        <p className="text-muted-foreground">{today}</p>
+      <div className="welcome-banner rounded-xl p-5 animate-fade-in-up">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Welcome back, Vikram</h1>
+            <p className="text-muted-foreground mt-0.5">{today}</p>
+          </div>
+          <div className="hidden sm:flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+            <Heart className="h-5.5 w-5.5 text-primary" />
+          </div>
+        </div>
       </div>
 
       {/* Queue Status Alert */}

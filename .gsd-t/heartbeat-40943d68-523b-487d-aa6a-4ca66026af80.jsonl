@@ -1,0 +1,4 @@
+{"ts":"2026-03-14T06:47:30.874Z","sid":"40943d68-523b-487d-aa6a-4ca66026af80","evt":"session_start","data":{"source":"startup","model":"claude-opus-4-6[1m]"}}
+{"ts":"2026-03-14T06:47:43.926Z","sid":"40943d68-523b-487d-aa6a-4ca66026af80","evt":"tool","tool":"Read","agent_id":null,"data":{"file":"package.json"}}
+{"ts":"2026-03-14T06:47:47.828Z","sid":"40943d68-523b-487d-aa6a-4ca66026af80","evt":"tool","tool":"Bash","agent_id":null,"data":{"cmd":"cd \"/c/Users/Anuj Geek/cliniqaI\" && npm run dev","desc":"Start Next.js dev server"}}
+{"ts":"2026-03-14T06:47:50.385Z","sid":"40943d68-523b-487d-aa6a-4ca66026af80","evt":"session_stop"}

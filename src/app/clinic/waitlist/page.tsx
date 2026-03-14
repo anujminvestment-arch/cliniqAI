@@ -60,7 +60,7 @@ export default function WaitlistPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Waitlist</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Waitlist</h1>
           <p className="text-muted-foreground">Manage patients waiting for available slots</p>
         </div>
         <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5">
@@ -102,13 +102,13 @@ export default function WaitlistPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle className="text-base">Waitlist Queue</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[60px]">#</TableHead>

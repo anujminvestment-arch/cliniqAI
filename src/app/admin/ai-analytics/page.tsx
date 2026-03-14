@@ -47,7 +47,7 @@ export default function AIAnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">AI Analytics</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">AI Analytics</h1>
         <p className="text-muted-foreground">
           AI voice call performance and booking metrics
         </p>
@@ -76,7 +76,7 @@ export default function AIAnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">
+          <CardTitle className="text-base font-semibold section-header">
             Calls vs Bookings
           </CardTitle>
         </CardHeader>
@@ -131,14 +131,14 @@ export default function AIAnalyticsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base font-semibold">
+          <CardTitle className="text-base font-semibold section-header">
             Daily AI Call Stats
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>

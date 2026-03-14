@@ -102,7 +102,7 @@ export default function OrganizationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Organizations</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Organizations</h1>
           <p className="text-muted-foreground">Manage enrolled organizations and their clinics</p>
         </div>
         <div className="flex gap-2">
@@ -125,7 +125,7 @@ export default function OrganizationsPage() {
       {/* Growth Chart */}
       <Card className="animate-fade-in-up">
         <CardHeader>
-          <CardTitle className="text-base">Organization & Clinic Growth</CardTitle>
+          <CardTitle className="text-base section-header">Organization & Clinic Growth</CardTitle>
           <CardDescription>Monthly enrollment trends</CardDescription>
         </CardHeader>
         <CardContent>
@@ -174,9 +174,9 @@ export default function OrganizationsPage() {
         </TabsList>
 
         <TabsContent value={tab} className="mt-4">
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="pt-6">
-              <Table>
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Organization</TableHead>

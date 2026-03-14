@@ -40,7 +40,7 @@ type ClinicStatus = "all" | "active" | "pending" | "suspended";
 
 function ClinicsTable({ clinics }: { clinics: typeof clinicsList }) {
   return (
-    <Table>
+    <Table className="table-enhanced">
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
@@ -125,7 +125,7 @@ export default function ClinicsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Manage Clinics</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Manage Clinics</h1>
           <p className="text-muted-foreground">
             View and manage all registered clinics
           </p>
@@ -136,7 +136,7 @@ export default function ClinicsPage() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ClinicStatus)}>
             <TabsList className="mb-4">
