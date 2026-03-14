@@ -37,7 +37,7 @@ export default function DoctorsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Doctors</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Doctors</h1>
         <p className="text-muted-foreground">Doctor profiles, schedules, and performance</p>
       </div>
 

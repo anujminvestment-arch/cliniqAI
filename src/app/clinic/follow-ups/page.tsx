@@ -74,7 +74,7 @@ export default function FollowUpsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Follow-ups</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Follow-ups</h1>
           <p className="text-muted-foreground">Track and manage patient follow-up schedules</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -175,9 +175,9 @@ export default function FollowUpsPage() {
         </TabsList>
 
         <TabsContent value={tab} className="mt-4">
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="pt-6">
-              <Table>
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>

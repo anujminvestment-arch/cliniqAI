@@ -49,7 +49,7 @@ export default function BranchesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Branches</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Branches</h1>
           <p className="text-muted-foreground">Manage clinic branches and locations</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

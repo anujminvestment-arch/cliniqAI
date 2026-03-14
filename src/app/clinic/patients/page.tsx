@@ -71,7 +71,7 @@ export default function PatientsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Patients</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Patients</h1>
           <p className="text-muted-foreground">Manage patient records and registrations</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -145,7 +145,7 @@ export default function PatientsPage() {
         </Dialog>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="pt-6">
           <div className="mb-4">
             <div className="relative max-w-sm">
@@ -158,7 +158,7 @@ export default function PatientsPage() {
               />
             </div>
           </div>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

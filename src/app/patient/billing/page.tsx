@@ -42,7 +42,7 @@ export default function BillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Billing & Payments</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Billing & Payments</h1>
         <p className="text-muted-foreground">
           View your invoices and payment history
         </p>
@@ -73,7 +73,7 @@ export default function BillingPage() {
       </div>
 
       {/* Invoice Table */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle>Invoices</CardTitle>
         </CardHeader>
@@ -87,7 +87,7 @@ export default function BillingPage() {
               </p>
             </div>
           ) : (
-            <Table>
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Invoice #</TableHead>

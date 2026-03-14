@@ -18,7 +18,7 @@ export default function MedicalRecordsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Medical Records</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Medical Records</h1>
         <p className="text-muted-foreground">
           Timeline of your past visits and consultations
         </p>

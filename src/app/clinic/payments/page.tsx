@@ -111,7 +111,7 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Payments</h1>
         <p className="text-muted-foreground">Online payment transactions and collections</p>
       </div>
 
@@ -146,7 +146,7 @@ export default function PaymentsPage() {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">All Transactions</CardTitle>
@@ -186,8 +186,8 @@ export default function PaymentsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Transaction ID</TableHead>

@@ -157,7 +157,7 @@ export default function CompliancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">DPDPA Compliance</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">DPDPA Compliance</h1>
         <p className="text-muted-foreground">
           Data protection, consent management, and compliance monitoring
         </p>
@@ -202,9 +202,9 @@ export default function CompliancePage() {
       {/* Side-by-side tables */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Consent Records */}
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 section-header">
               <ShieldCheck className="h-4 w-4 text-primary" />
               Recent Consent Records
             </CardTitle>
@@ -232,8 +232,8 @@ export default function CompliancePage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>
@@ -277,9 +277,9 @@ export default function CompliancePage() {
         </Card>
 
         {/* Data Export Requests */}
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2 section-header">
               <FileCheck className="h-4 w-4 text-primary" />
               Data Export Requests
             </CardTitle>
@@ -299,8 +299,8 @@ export default function CompliancePage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Request ID</TableHead>
@@ -345,7 +345,7 @@ export default function CompliancePage() {
       {/* Compliance Checklist */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 section-header">
             <Award className="h-4 w-4 text-primary" />
             Compliance Checklist
           </CardTitle>

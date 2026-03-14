@@ -7,6 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --font-sans: var(--font-sans);
   --font-body: var(--font-body);
   --font-mono: var(--font-geist-mono);
@@ -65,6 +69,10 @@
   --accent: oklch(0.58 0.155 170);
   --accent-foreground: oklch(0.99 0 0);
   --destructive: oklch(0.58 0.24 27);
+  --success: oklch(0.62 0.19 145);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.25 0.05 60);
   --border: oklch(0.925 0.008 265);
   --input: oklch(0.925 0.008 265);
   --ring: oklch(0.46 0.20 264);
@@ -117,6 +125,10 @@
   --sidebar-accent-foreground: oklch(0.96 0.005 260);
   --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.64 0.18 262);
+  --success: oklch(0.68 0.17 145);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.78 0.12 75);
+  --warning-foreground: oklch(0.20 0.05 60);
 }
 
 /* ─── Keyframes ─── */
@@ -438,6 +450,111 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Welcome banner gradient */
+  .welcome-banner {
+    background: linear-gradient(135deg, oklch(0.46 0.20 264 / 0.06), oklch(0.58 0.155 170 / 0.04), oklch(0.55 0.17 300 / 0.03));
+    border: 1px solid oklch(0.46 0.20 264 / 0.1);
+  }
+  .dark .welcome-banner {
+    background: linear-gradient(135deg, oklch(0.46 0.20 264 / 0.12), oklch(0.58 0.155 170 / 0.08), oklch(0.55 0.17 300 / 0.05));
+    border-color: oklch(0.46 0.20 264 / 0.15);
+  }
+
+  /* Portal-specific accent gradients */
+  .gradient-admin {
+    background: linear-gradient(135deg, oklch(0.46 0.20 264), oklch(0.38 0.19 278));
+  }
+  .gradient-clinic {
+    background: linear-gradient(135deg, oklch(0.50 0.18 170), oklch(0.42 0.16 185));
+  }
+  .gradient-patient {
+    background: linear-gradient(135deg, oklch(0.50 0.17 300), oklch(0.42 0.16 280));
+  }
+
+  /* Accent bar left — used in stat cards */
+  .accent-bar-primary { border-left: 3px solid oklch(0.46 0.20 264); }
+  .accent-bar-accent { border-left: 3px solid oklch(0.58 0.155 170); }
+  .accent-bar-emerald { border-left: 3px solid oklch(0.62 0.19 145); }
+  .accent-bar-amber { border-left: 3px solid oklch(0.72 0.18 75); }
+  .accent-bar-violet { border-left: 3px solid oklch(0.55 0.17 300); }
+  .accent-bar-rose { border-left: 3px solid oklch(0.62 0.22 15); }
+
+  /* Improved table row hover */
+  .table-enhanced tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .table-enhanced tbody tr:hover {
+    background-color: oklch(0.46 0.20 264 / 0.04);
+  }
+  .dark .table-enhanced tbody tr:hover {
+    background-color: oklch(0.64 0.18 262 / 0.06);
+  }
+
+  /* Section header with decorative line */
+  .section-header {
+    position: relative;
+    padding-left: 14px;
+  }
+  .section-header::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, oklch(0.46 0.20 264), oklch(0.58 0.155 170));
+  }
+
+  /* Empty state container */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.80 0.01 265) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: oklch(0.80 0.01 265);
+    border-radius: 3px;
+  }
+  .dark .scrollbar-thin {
+    scrollbar-color: oklch(0.30 0.01 265) transparent;
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: oklch(0.30 0.01 265);
+  }
+
+  /* Badge glow for live indicators */
+  .badge-live {
+    position: relative;
+  }
+  .badge-live::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: inherit;
+    opacity: 0.4;
+    filter: blur(4px);
+    z-index: -1;
+    animation: pulse-soft 2s ease-in-out infinite;
   }
 }
 

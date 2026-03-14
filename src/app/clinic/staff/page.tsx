@@ -52,7 +52,7 @@ export default function StaffPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Doctors & Staff</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Doctors & Staff</h1>
         <p className="text-muted-foreground">Manage clinic doctors and staff members</p>
       </div>
 
@@ -117,9 +117,9 @@ export default function StaffPage() {
         </TabsContent>
 
         <TabsContent value="staff">
-          <Card className="mt-4">
+          <Card className="mt-4 overflow-hidden">
             <CardContent className="pt-6">
-              <Table>
+              <Table className="table-enhanced">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>

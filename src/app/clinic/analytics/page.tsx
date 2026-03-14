@@ -54,7 +54,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Analytics</h1>
         <p className="text-muted-foreground">Clinic performance insights and benchmarking</p>
       </div>
 
@@ -128,13 +128,13 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Doctor Utilization</CardTitle>
             <CardDescription>Today&apos;s performance metrics</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Doctor Name</TableHead>
@@ -172,13 +172,13 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Top Services</CardTitle>
             <CardDescription>Most booked services this month</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Service Name</TableHead>
@@ -200,14 +200,14 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle className="text-base">Performance vs Platform Average</CardTitle>
           <CardDescription>How your clinic compares to other clinics on the platform</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Metric</TableHead>

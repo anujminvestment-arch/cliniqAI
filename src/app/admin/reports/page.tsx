@@ -78,7 +78,7 @@ export default function AdminReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Platform Reports</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Platform Reports</h1>
           <p className="text-muted-foreground">Cross-clinic analytics and performance metrics</p>
         </div>
         <Button variant="outline" className="cursor-pointer w-fit">
@@ -109,7 +109,7 @@ export default function AdminReportsPage() {
       {/* Revenue by Clinic */}
       <Card className="animate-fade-in-up">
         <CardHeader>
-          <CardTitle className="text-base">Revenue by Clinic</CardTitle>
+          <CardTitle className="text-base section-header">Revenue by Clinic</CardTitle>
           <CardDescription>Monthly revenue breakdown across all clinics</CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,7 +134,7 @@ export default function AdminReportsPage() {
         {/* User Acquisition */}
         <Card className="animate-fade-in-up delay-100">
           <CardHeader>
-            <CardTitle className="text-base">User Acquisition</CardTitle>
+            <CardTitle className="text-base section-header">User Acquisition</CardTitle>
             <CardDescription>New users by role per month</CardDescription>
           </CardHeader>
           <CardContent>
@@ -161,7 +161,7 @@ export default function AdminReportsPage() {
         {/* AI Call Analytics */}
         <Card className="animate-fade-in-up delay-200">
           <CardHeader>
-            <CardTitle className="text-base">AI Call Volume & Success</CardTitle>
+            <CardTitle className="text-base section-header">AI Call Volume & Success</CardTitle>
             <CardDescription>Last 7 days</CardDescription>
           </CardHeader>
           <CardContent>
@@ -180,13 +180,13 @@ export default function AdminReportsPage() {
       </div>
 
       {/* Top Clinics */}
-      <Card className="animate-fade-in-up delay-300">
+      <Card className="animate-fade-in-up delay-300 overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base">Top Performing Clinics</CardTitle>
+          <CardTitle className="text-base section-header">Top Performing Clinics</CardTitle>
           <CardDescription>Ranked by total revenue</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Rank</TableHead>

@@ -77,13 +77,13 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Users</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Users</h1>
         <p className="text-muted-foreground">
           Manage platform users across all clinics
         </p>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
             <div className="relative flex-1 w-full sm:max-w-sm">
@@ -111,7 +111,7 @@ export default function UsersPage() {
             </Select>
           </div>
 
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

@@ -36,7 +36,7 @@ export default function AISettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">AI Voice Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">AI Voice Settings</h1>
         <p className="text-muted-foreground">Configure the AI Voice Receptionist for your clinic</p>
       </div>
 

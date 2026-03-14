@@ -72,7 +72,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Reports</h1>
           <p className="text-muted-foreground">Clinic analytics and performance insights</p>
         </div>
         <Button variant="outline" className="cursor-pointer w-fit">
@@ -148,13 +148,13 @@ export default function ReportsPage() {
         </Card>
 
         {/* Doctor Performance */}
-        <Card className="animate-fade-in-up delay-200">
+        <Card className="animate-fade-in-up delay-200 overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Doctor Performance</CardTitle>
             <CardDescription>Monthly comparison</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Doctor</TableHead>
@@ -194,7 +194,7 @@ export default function ReportsPage() {
           <CardDescription>Appointment density by day and hour</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-xs">
               <thead>
                 <tr>

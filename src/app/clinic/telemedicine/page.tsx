@@ -70,7 +70,7 @@ export default function TelemedicinePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Telemedicine</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Telemedicine</h1>
         <p className="text-muted-foreground">Video consultation management</p>
       </div>
 
@@ -111,10 +111,10 @@ export default function TelemedicinePage() {
         </TabsList>
 
         <TabsContent value="upcoming" className="mt-4">
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto scrollbar-thin">
+                <Table className="table-enhanced">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Patient Name</TableHead>
@@ -186,10 +186,10 @@ export default function TelemedicinePage() {
         </TabsContent>
 
         <TabsContent value="completed" className="mt-4">
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto scrollbar-thin">
+                <Table className="table-enhanced">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Patient Name</TableHead>

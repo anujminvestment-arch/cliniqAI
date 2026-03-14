@@ -124,7 +124,7 @@ export default function TelemedicinePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Telemedicine</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Telemedicine</h1>
         <p className="text-muted-foreground">Join video consultations with your doctors from anywhere</p>
       </div>
 

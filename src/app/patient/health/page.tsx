@@ -91,7 +91,7 @@ export default function HealthPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Health Overview</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Health Overview</h1>
         <p className="text-muted-foreground">Track your vitals, medications, and wellness</p>
       </div>
 

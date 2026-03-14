@@ -178,7 +178,7 @@ export default function FeedbackPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Feedback</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Feedback</h1>
         <p className="text-muted-foreground">Rate your visits and help us improve your experience</p>
       </div>
 

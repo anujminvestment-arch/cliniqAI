@@ -36,9 +36,19 @@ export default function ClinicDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">SmileCare Dental — Today&apos;s overview</p>
+      <div className="welcome-banner rounded-xl p-5 animate-fade-in-up">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Good morning, Dr. Priya</h1>
+            <p className="text-muted-foreground mt-0.5">SmileCare Dental — Today&apos;s overview</p>
+          </div>
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 rounded-full px-3 py-1">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse-soft" />
+              Clinic Open
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -87,9 +97,9 @@ export default function ClinicDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Weekly Appointments</CardTitle>
+            <CardTitle className="text-base section-header">Weekly Appointments</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[280px]">
@@ -128,9 +138,9 @@ export default function ClinicDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-base">Live Queue Status</CardTitle>
+            <CardTitle className="text-base section-header">Live Queue Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -182,9 +192,9 @@ export default function ClinicDashboard() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base">Today&apos;s Appointments</CardTitle>
+          <CardTitle className="text-base section-header">Today&apos;s Appointments</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

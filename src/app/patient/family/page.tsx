@@ -166,7 +166,7 @@ export default function FamilyPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Family Health Hub</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Family Health Hub</h1>
           <p className="text-muted-foreground">Manage family members and their health under one account</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

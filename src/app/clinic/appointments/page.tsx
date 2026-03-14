@@ -88,7 +88,7 @@ export default function AppointmentsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Appointments</h1>
+          <h1 className="text-2xl font-bold tracking-tight section-header">Appointments</h1>
           <p className="text-muted-foreground">Manage patient appointments and scheduling</p>
         </div>
         <div className="flex items-center gap-3">
@@ -187,7 +187,7 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader className="pb-3">
           <Tabs defaultValue="all" onValueChange={(v) => setActiveTab(v as FilterTab)}>
             <TabsList>
@@ -200,7 +200,7 @@ export default function AppointmentsPage() {
           </Tabs>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="table-enhanced">
             <TableHeader>
               <TableRow>
                 <TableHead>Patient</TableHead>

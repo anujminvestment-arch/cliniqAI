@@ -125,7 +125,7 @@ export default function SubscriptionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Subscriptions</h1>
+        <h1 className="text-2xl font-bold tracking-tight section-header">Subscriptions</h1>
         <p className="text-muted-foreground">
           Manage clinic subscription plans and billing
         </p>
@@ -204,16 +204,16 @@ export default function SubscriptionsPage() {
       </div>
 
       {/* Subscriptions Table */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="text-base flex items-center gap-2 section-header">
             <CreditCard className="h-4 w-4 text-primary" />
             Clinic Subscriptions
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin">
+            <Table className="table-enhanced">
               <TableHeader>
                 <TableRow>
                   <TableHead>Clinic Name</TableHead>

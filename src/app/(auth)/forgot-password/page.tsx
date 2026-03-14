@@ -41,12 +41,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      {/* Background layers */}
+      <div className="fixed inset-0 -z-10 gradient-hero" />
+      <div className="fixed inset-0 -z-10 dot-pattern opacity-30" />
+
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
 
-      {/* Mobile branding */}
+      {/* Branding */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2">
         <h1 className="text-2xl font-bold text-gradient-primary">CliniqAI</h1>
       </div>
