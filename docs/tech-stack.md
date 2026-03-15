@@ -40,9 +40,9 @@
 | **UI** | Tailwind CSS + shadcn/ui | Already set up, composable | Free |
 | **Backend API** | tRPC + Zod (internal) / REST (external) | End-to-end type safety | Free |
 | **ORM** | Drizzle ORM | Fastest cold starts, SQL control, edge-ready | Free |
-| **Database** | Supabase PostgreSQL + RLS | Auth + DB + Realtime + Storage in one | $25/mo Pro |
-| **Vector DB** | pgvector (Supabase extension) | No extra service, sufficient for clinic scale | Free (included) |
-| **Auth** | Better Auth (self-hosted) OR Supabase Auth | Multi-tenant RBAC, free at scale | Free |
+| **Database** | Self-hosted PostgreSQL (local/VPS) | Full control, no vendor dependency, free | Rs 500-2K/mo (VPS) |
+| **Vector DB** | pgvector (PostgreSQL extension) | Same DB, no extra service | Free |
+| **Auth** | Passport.js (JWT + social login) | Full control, local + Google/Facebook login | Free |
 | **AI Voice** | Bolna.ai (orchestration) + Exotel (telephony) | Indian languages, Hinglish, +91 numbers | Rs 10K-20K/mo |
 | **LLM** | Claude API (primary) via Vercel AI SDK v6 | Best medical reasoning, 1M context | Per-token |
 | **Embeddings** | OpenAI text-embedding-3-small | $0.02/MTok, good accuracy | ~$5-10/mo |
@@ -50,16 +50,20 @@
 | **WhatsApp** | Gupshup or WATI (WhatsApp Business API) | India BSPs, chatbot support | Rs 2,500+/mo |
 | **SMS** | Exotel SMS (included) or MSG91 | DLT compliant, cheap in India | Rs 500-2K/mo |
 | **Payments** | Razorpay | UPI, cards, subscriptions, best Indian DX | 2% per txn |
-| **File Storage** | Supabase Storage (primary) + Cloudflare R2 (large files) | Integrated auth + zero egress | $0-10/mo |
-| **Real-Time** | Supabase Realtime | Queue updates, notifications, included | Free (included) |
+| **File Storage** | Cloudflare R2 (primary) + local disk (dev) | Zero egress fees, cheap | $0-10/mo |
+| **Real-Time** | SSE (AI streaming) + WebSocket via Socket.io | Queue updates, chat, notifications | Free |
 | **Video** | Jitsi Meet (self-hosted) or Daily.co | Free/cheap video consultation | Free-$99/mo |
-| **Rate Limiting** | @upstash/ratelimit + Upstash Redis | Edge-native, Next.js compatible | $10/mo |
-| **Knowledge Base** | PostgreSQL + pgvector + Redis cache | Structured + semantic + cached | Included |
+| **Rate Limiting** | express-rate-limit + Redis | Simple, self-hosted | Free |
+| **Knowledge Base** | PostgreSQL + pgvector + Redis cache | Structured + semantic + cached | Free |
 | **Message Queue** | BullMQ (on Redis) | Conversation ingestion, background jobs | Free |
-| **Monitoring** | Sentry (errors) + Upstash (analytics) | Error tracking, performance | Free-$26/mo |
-| **Hosting** | Vercel (frontend) + Supabase (backend) | Optimized for Next.js | $20-40/mo |
+| **Caching** | Self-hosted Redis | Session, cache, queue, rate limiting | Free |
+| **Monitoring** | Sentry (errors) | Error tracking, performance | Free tier |
+| **Hosting** | Vercel (frontend) + VPS (backend + DB) | Next.js optimized + full backend control | Rs 2K-5K/mo |
 
-**Total estimated MVP cost: Rs 15,000-30,000/month (~$180-360)**
+**Total estimated MVP cost: Rs 10,000-25,000/month (~$120-300)**
+
+> **Key decision: NO Supabase dependency.** Everything runs on your own backend.
+> Auth, database, realtime, storage — all self-managed for full control and lower cost.
 
 ---
 
@@ -198,6 +202,28 @@ export type BookAppointmentInput = z.infer<typeof bookAppointmentSchema>;
 
 ## 4. Database & ORM
 
+### Self-Hosted PostgreSQL + pgvector (NO Supabase)
+
+> **Decision: Everything runs on your own PostgreSQL.** No Supabase dependency. Auth, database, storage, realtime — all self-managed.
+
+### Setup
+
+```bash
+# PostgreSQL (already installed locally)
+# Add pgvector extension:
+sudo apt install postgresql-16-pgvector   # Ubuntu/Debian
+# OR from source:
+git clone https://github.com/pgvector/pgvector.git
+cd pgvector && make && sudo make install
+
+# Enable in your database:
+psql -d cliniqai -c "CREATE EXTENSION vector;"
+
+# Connection pooling (for production):
+sudo apt install pgbouncer
+# Configure pgbouncer.ini with your connection details
+```
+
 ### Why Drizzle ORM (not Prisma)
 
 | Factor | Drizzle | Prisma |
@@ -207,70 +233,418 @@ export type BookAppointmentInput = z.infer<typeof bookAppointmentSchema>;
 | Edge runtime | Native support | Limited |
 | SQL control | Full — write SQL-like queries | Abstracted — less control |
 | Migrations | `drizzle-kit` — lightweight | `prisma migrate` — heavier |
-| Supabase fit | Excellent | Good |
+| PostgreSQL fit | Excellent — raw SQL when needed | Good |
 
-### Supabase PostgreSQL
+### Multi-Tenant Isolation (Application-Level, No RLS)
 
-**Why Supabase over raw PostgreSQL:**
-- Auth + Database + Storage + Realtime + Edge Functions — one platform
-- Row Level Security (RLS) enforces tenant isolation at the database level
-- pgvector extension for embeddings — no external vector DB needed
-- Built-in connection pooling (PgBouncer)
-- Dashboard for debugging queries, viewing data
-- Free tier: 500MB DB, 1GB storage, 50K MAUs
+Since we're NOT using Supabase RLS, we enforce tenant isolation in the **application layer** via Drizzle ORM:
 
-**Supabase Pro ($25/mo) gives:**
-- 8GB database
-- 100GB storage
-- 250K MAUs
-- Daily backups (7-day retention)
-- No project pausing
+```typescript
+// Every query MUST include clinicId filter
+// This is enforced by a helper function — never query without it
 
-### Row Level Security (RLS) — How Tenant Isolation Works
+function forClinic(clinicId: string) {
+  return eq(schema.clinicId, clinicId);
+}
 
-```sql
--- Every table has clinic_id. RLS automatically filters by it.
-ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+// SAFE: Always scoped to tenant
+const appointments = await db.select()
+  .from(appointmentsTable)
+  .where(and(
+    forClinic(ctx.clinicId),  // from JWT payload
+    eq(appointmentsTable.date, today)
+  ));
 
--- Clinic staff/doctors see all appointments in their clinic
-CREATE POLICY "clinic_access" ON appointments
-  FOR ALL USING (
-    clinic_id = (auth.jwt()->>'clinic_id')::uuid
-    AND (auth.jwt()->>'role') IN ('doctor', 'staff', 'nurse', 'receptionist', 'clinic_owner')
-  );
-
--- Patients see only their own appointments
-CREATE POLICY "patient_access" ON appointments
-  FOR SELECT USING (
-    clinic_id = (auth.jwt()->>'clinic_id')::uuid
-    AND patient_id = (auth.jwt()->>'patient_id')::uuid
-  );
+// UNSAFE: This pattern is NEVER allowed in code review
+// const all = await db.select().from(appointmentsTable); // ❌ NO clinicId filter!
 ```
 
-**Result:** Every query is automatically filtered. A doctor at Clinic A can NEVER see Clinic B's data, even if the application code has a bug.
+**Safeguards:**
+- Custom Drizzle middleware that logs warnings if any query runs without `clinic_id` filter
+- ESLint rule to flag `.select().from()` without `.where(forClinic())`
+- Code review checklist: every DB query must include tenant scoping
+
+### Production Infrastructure
+
+```
+LOCAL DEVELOPMENT:
+  PostgreSQL on your machine (already installed)
+  Redis on your machine (for cache + BullMQ)
+  → Free
+
+PRODUCTION (VPS):
+  Option A: DigitalOcean Droplet
+    $12/mo (2GB RAM, 1 vCPU) — PostgreSQL + Redis + pgvector
+    $24/mo (4GB RAM, 2 vCPU) — for more clinics
+
+  Option B: Hetzner Cloud
+    €4.85/mo (2GB RAM, 2 vCPU) — cheapest reliable VPS
+    €8.85/mo (4GB RAM, 2 vCPU)
+
+  Option C: Railway.app
+    $5/mo — managed PostgreSQL (includes pgvector)
+    No server management needed
+
+BACKUPS:
+  pg_dump via cron job → upload to Cloudflare R2
+  # Daily backup at 2 AM
+  0 2 * * * pg_dump cliniqai | gzip > /backups/cliniqai_$(date +%Y%m%d).sql.gz
+  # Upload to R2 (using rclone)
+  0 3 * * * rclone copy /backups/ r2:cliniqai-backups/
+```
 
 ---
 
 ## 5. Authentication & Multi-Tenant RBAC
 
-### Recommended: Better Auth (or Supabase Auth)
+### Chosen: Passport.js (JWT + Social Login) — Self-Hosted, Full Control
 
-| Feature | Better Auth | Supabase Auth | Clerk |
-|---------|-------------|---------------|-------|
-| Type | Open source library | Managed (open source core) | Managed SaaS |
-| Multi-tenancy | Built-in (organizations, roles, invitations) | Via RLS + custom tables | Built-in |
-| Free tier | Unlimited (self-hosted) | 50,000 MAUs | 10,000 MAUs |
-| At 100K MAUs | Free | Still cheap | Very expensive |
-| Enterprise SSO | SAML 2.0, SCIM | SAML (Enterprise plan) | SAML, SCIM |
-| India data residency | Yes (self-hosted) | Singapore region | US-based |
+> **Decision: NO Supabase Auth, NO Clerk, NO Better Auth.** Auth is fully managed on our own backend using Passport.js with JWT tokens and social login strategies.
 
-**Better Auth** is recommended because:
-- Free at any scale (self-hosted with your Supabase DB)
-- Built-in organization model (each clinic = an organization)
-- Fine-grained RBAC for 7+ roles
-- TypeScript-first, works with Next.js App Router
+### Why Passport.js
 
-**Alternative:** Supabase Auth is simpler if you want everything in one platform. Use custom claims in JWT for roles + tenant ID.
+| Factor | Why It Fits |
+|--------|-----------|
+| **Full control** | Auth logic lives in YOUR codebase, not a third-party |
+| **JWT tokens** | Stateless auth, works with Next.js middleware + API routes |
+| **Social login** | passport-google-oauth20, passport-facebook — plug-and-play |
+| **Local login** | passport-local with bcrypt password hashing |
+| **Free** | Open source, no per-MAU charges ever |
+| **No vendor lock-in** | Switch providers or add new ones without migration |
+| **Proven** | 50K+ GitHub stars, battle-tested in production |
+
+### Auth Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AUTH SYSTEM (Self-Hosted)                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Libraries:                                                     │
+│  ├── passport             — auth middleware                     │
+│  ├── passport-local       — email + password login              │
+│  ├── passport-google-oauth20 — Google social login              │
+│  ├── passport-facebook    — Facebook social login (optional)    │
+│  ├── jsonwebtoken (jwt)   — JWT token generation + verification │
+│  ├── bcryptjs             — password hashing (12 salt rounds)   │
+│  ├── cookie-parser        — secure HTTP-only cookie handling    │
+│  └── zod                  — input validation                    │
+│                                                                 │
+│  Token Strategy:                                                │
+│  ├── Access Token:  JWT, 15 min expiry, stored in HTTP-only     │
+│  │                  cookie (not localStorage — XSS safe)        │
+│  ├── Refresh Token: UUID, 30 day expiry, stored in DB +         │
+│  │                  HTTP-only cookie, rotated on use             │
+│  └── JWT Payload:                                               │
+│      {                                                          │
+│        "userId": "uuid",                                        │
+│        "clinicId": "uuid",     // current tenant                │
+│        "role": "doctor",       // role in this clinic           │
+│        "email": "dr@clinic.com",                                │
+│        "iat": 1710500000,                                       │
+│        "exp": 1710500900       // 15 min                        │
+│      }                                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Database Tables for Auth
+
+```sql
+-- Users (all users across the platform)
+CREATE TABLE users (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email           VARCHAR(255) UNIQUE NOT NULL,
+  password_hash   VARCHAR(255),                   -- NULL for social-only users
+  name            VARCHAR(255) NOT NULL,
+  phone           VARCHAR(20),
+  avatar_url      TEXT,
+  email_verified  BOOLEAN DEFAULT false,
+  is_active       BOOLEAN DEFAULT true,
+
+  -- Social login providers
+  google_id       VARCHAR(255) UNIQUE,
+  facebook_id     VARCHAR(255) UNIQUE,
+
+  -- Platform role (super_admin or regular user)
+  platform_role   VARCHAR(50) DEFAULT 'user',     -- 'super_admin', 'user'
+
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_google ON users(google_id) WHERE google_id IS NOT NULL;
+
+-- Clinic memberships (user's role in each clinic — multi-tenant)
+CREATE TABLE clinic_memberships (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  clinic_id       UUID NOT NULL REFERENCES clinics(id),
+  role            VARCHAR(50) NOT NULL,           -- 'clinic_owner', 'doctor', 'nurse', 'receptionist', 'staff'
+  is_active       BOOLEAN DEFAULT true,
+  invited_by      UUID REFERENCES users(id),
+  joined_at       TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(user_id, clinic_id)                      -- one role per user per clinic
+);
+
+CREATE INDEX idx_memberships_user ON clinic_memberships(user_id);
+CREATE INDEX idx_memberships_clinic ON clinic_memberships(clinic_id);
+
+-- Patient accounts (separate from staff users)
+CREATE TABLE patient_accounts (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID REFERENCES users(id),       -- NULL if registered via AI call (no login yet)
+  patient_id      UUID NOT NULL REFERENCES patients(id),
+  clinic_id       UUID NOT NULL REFERENCES clinics(id),
+  created_at      TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(user_id, clinic_id)
+);
+
+-- Refresh tokens (stored in DB for revocation)
+CREATE TABLE refresh_tokens (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  token_hash      VARCHAR(255) NOT NULL,           -- SHA256 of token (never store raw)
+  device_info     VARCHAR(500),                    -- "Chrome on Windows"
+  ip_address      INET,
+  expires_at      TIMESTAMPTZ NOT NULL,
+  is_revoked      BOOLEAN DEFAULT false,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_refresh_user ON refresh_tokens(user_id, is_revoked);
+
+-- Password reset tokens
+CREATE TABLE password_resets (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id),
+  token_hash      VARCHAR(255) NOT NULL,
+  expires_at      TIMESTAMPTZ NOT NULL,            -- 1 hour expiry
+  used_at         TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Login Flows
+
+```
+FLOW 1: LOCAL LOGIN (Email + Password)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User enters email + password on /login
+        │
+        ▼
+POST /api/auth/login
+  → Zod validates input
+  → passport-local strategy:
+    1. Find user by email in users table
+    2. bcrypt.compare(password, password_hash)
+    3. If match:
+       a. Generate JWT access token (15 min)
+       b. Generate refresh token UUID → hash → store in DB
+       c. Set both as HTTP-only, Secure, SameSite cookies
+       d. Return user + clinic memberships
+    4. If no match → 401 Unauthorized
+
+
+FLOW 2: GOOGLE SOCIAL LOGIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User clicks "Sign in with Google" on /login
+        │
+        ▼
+GET /api/auth/google
+  → Redirects to Google OAuth consent screen
+        │
+        ▼
+Google redirects back to /api/auth/google/callback
+  → passport-google-oauth20 strategy:
+    1. Receive google profile (id, email, name, avatar)
+    2. Check: does user with this google_id exist?
+       YES → login (generate JWT + refresh token)
+       NO → check: does user with this email exist?
+            YES → link google_id to existing user → login
+            NO → create new user → login
+    3. Set cookies, redirect to dashboard
+
+
+FLOW 3: TOKEN REFRESH
+━━━━━━━━━━━━━━━━━━━━━
+
+Access token expired (15 min)
+        │
+        ▼
+POST /api/auth/refresh
+  → Read refresh token from HTTP-only cookie
+  → Hash it → find in refresh_tokens table
+  → Check: not revoked? not expired?
+    YES → generate new access token + new refresh token
+          (rotate: old refresh token revoked)
+    NO → 401 → redirect to /login
+
+
+FLOW 4: CLINIC SWITCHING (Multi-Tenant)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Doctor works at 3 clinics. Currently viewing Clinic A.
+Clicks "Switch to Clinic B" in sidebar.
+        │
+        ▼
+POST /api/auth/switch-clinic
+  Body: { clinicId: "clinic-b-uuid" }
+  → Check clinic_memberships: does user have role in Clinic B?
+    YES → generate new JWT with clinicId = "clinic-b",
+          role = user's role in Clinic B
+    NO → 403 Forbidden
+```
+
+### Clinic Onboarding Flow
+
+```
+NEW CLINIC ONBOARDING (/admin/onboarding or /register)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: OWNER REGISTRATION
+  ┌──────────────────────────────────────────┐
+  │  Create Your Account                     │
+  │                                          │
+  │  Name:     [Dr. Rajesh Sharma         ]  │
+  │  Email:    [dr.sharma@gmail.com       ]  │
+  │  Password: [••••••••••                ]  │
+  │  Phone:    [+91-98765-43210           ]  │
+  │                                          │
+  │  ── OR ──                                │
+  │  [🔵 Sign up with Google]                │
+  │                                          │
+  │  [Next →]                                │
+  └──────────────────────────────────────────┘
+        │
+        ▼
+Step 2: CLINIC DETAILS
+  ┌──────────────────────────────────────────┐
+  │  Tell Us About Your Clinic               │
+  │                                          │
+  │  Clinic Name:  [City Dental Clinic    ]  │
+  │  Speciality:   [Dental              ▼]  │
+  │  Address:      [MG Road, Bangalore    ]  │
+  │  City:         [Bangalore           ▼]  │
+  │  Pincode:      [560034                ]  │
+  │  Phone:        [+91-80-XXXX-XXXX      ]  │
+  │                                          │
+  │  Timings:                                │
+  │  Mon-Fri: [10:00 AM] to [06:00 PM]      │
+  │  Saturday: [10:00 AM] to [02:00 PM]     │
+  │  Sunday:   [Closed                    ]  │
+  │                                          │
+  │  [← Back]  [Next →]                     │
+  └──────────────────────────────────────────┘
+        │
+        ▼
+Step 3: ADD DOCTORS
+  ┌──────────────────────────────────────────┐
+  │  Add Your Doctors                        │
+  │                                          │
+  │  Doctor 1 (You):                         │
+  │  Name:          [Dr. Rajesh Sharma    ]  │
+  │  Specialization:[Dentist            ▼]  │
+  │  Qualification: [MBBS, MDS            ]  │
+  │  Fee:           [Rs 500               ]  │
+  │  Experience:    [12 years             ]  │
+  │                                          │
+  │  [+ Add Another Doctor]                  │
+  │                                          │
+  │  Doctor 2:                               │
+  │  Name:          [Dr. Priya Mehta      ]  │
+  │  Email:         [priya@gmail.com      ]  │
+  │  Specialization:[Dentist            ▼]  │
+  │  Fee:           [Rs 300               ]  │
+  │  → Email invite will be sent             │
+  │                                          │
+  │  [← Back]  [Next →]                     │
+  └──────────────────────────────────────────┘
+        │
+        ▼
+Step 4: AI CONFIGURATION
+  ┌──────────────────────────────────────────┐
+  │  Configure Your AI Receptionist          │
+  │                                          │
+  │  Greeting Language:  [Hindi + English ▼] │
+  │  Greeting Message:                       │
+  │  [Namaste! Welcome to City Dental Clinic.│
+  │   Main aapki kya madad kar sakta hoon?]  │
+  │                                          │
+  │  After-hours Message:                    │
+  │  [Clinic abhi band hai. Kal subah 10     │
+  │   baje se appointment book kar sakte hain]│
+  │                                          │
+  │  Emergency Number: [+91-98765-43210   ]  │
+  │                                          │
+  │  [← Back]  [Launch Clinic 🚀]           │
+  └──────────────────────────────────────────┘
+        │
+        ▼
+BACKEND PROCESSES ON SUBMIT:
+  1. Create user (users table)
+  2. Create clinic (clinics table)
+  3. Create clinic_membership (role: 'clinic_owner')
+  4. Create doctor records for each doctor entered
+  5. Send email invites to additional doctors
+     (invite link → /register?invite=TOKEN&clinic=UUID)
+  6. Build system prompt from clinic details → cache in Redis
+  7. Seed default knowledge base entries (FAQs, common symptoms)
+  8. Provision Exotel virtual number (async via BullMQ)
+  9. Redirect to clinic dashboard → "Your clinic is live! 🎉"
+```
+
+### Next.js Middleware for Auth
+
+```typescript
+// middleware.ts — runs BEFORE every request
+import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
+
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/api/auth', '/api/webhooks'];
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+
+  // Allow public paths
+  if (PUBLIC_PATHS.some(p => path.startsWith(p))) return NextResponse.next();
+
+  // Get JWT from cookie
+  const token = req.cookies.get('access_token')?.value;
+  if (!token) return NextResponse.redirect(new URL('/login', req.url));
+
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET));
+
+    // Enforce portal access by role
+    if (path.startsWith('/admin') && payload.platform_role !== 'super_admin') {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+    if (path.startsWith('/clinic') && !['clinic_owner', 'doctor', 'staff', 'nurse', 'receptionist'].includes(payload.role as string)) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+    if (path.startsWith('/patient') && payload.role !== 'patient') {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+
+    // Add user info to headers (accessible in server components)
+    const headers = new Headers(req.headers);
+    headers.set('x-user-id', payload.userId as string);
+    headers.set('x-clinic-id', payload.clinicId as string);
+    headers.set('x-user-role', payload.role as string);
+
+    return NextResponse.next({ headers });
+  } catch {
+    // Token expired or invalid → try refresh
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+}
+```
 
 ### Role Hierarchy
 
