@@ -2107,36 +2107,117 @@ Admin creates/updates knowledge base entry
 | Message Queue | **BullMQ** (on self-hosted Redis) | Free |
 | Cache | **Self-hosted Redis** | Free |
 | Conversation DB | **Self-hosted PostgreSQL** | Free |
-| Live STT (during call) | **Deepgram** or **Sarvam AI** (via Bolna) | Rs 30/hr (Sarvam) / $0.0043/min (Deepgram) |
-| Post-call STT (storage) | **OpenAI Whisper** (self-hosted, FREE) | Free |
+| Live STT (during call) | **Sarvam AI** (via Bolna) — best for Indian languages | Rs 30/hr |
+| Post-call STT (storage) | **Sarvam AI** (re-process for clean transcript) | Rs 30/hr |
+| Post-call STT (global) | **OpenAI Whisper** (self-hosted) — for non-Indian languages | Free |
 | Embeddings | **OpenAI text-embedding-3-small** | $0.02/MTok |
 
-### Dual-STT Strategy: Live (Deepgram/Sarvam) + Storage (Whisper)
+### Indian Language Accuracy: Whisper vs Sarvam AI
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ WHISPER large-v3 (global model, not India-optimized)         │
+│                                                              │
+│ English:   95-97%  ✅ Excellent                              │
+│ Hindi:     85-90%  ⚠️  Good but misses words                 │
+│ Hinglish:  65-75%  ❌ BAD — confuses language switching      │
+│ Tamil:     75-82%  ⚠️  Struggles with fast speech             │
+│ Telugu:    73-80%  ⚠️  Same issues                            │
+│ Bengali:   78-85%  ⚠️  Decent                                │
+│ Kannada:   70-78%  ❌ Weak                                   │
+│                                                              │
+│ Problem: Trained on global data, not Indian accents/mixing   │
+├──────────────────────────────────────────────────────────────┤
+│ SARVAM AI (built specifically for India)                     │
+│                                                              │
+│ English:   94-96%  ✅ Excellent                              │
+│ Hindi:     93-96%  ✅ Excellent                              │
+│ Hinglish:  90-94%  ✅ Great — handles code-switching         │
+│ Tamil:     90-93%  ✅ Great                                  │
+│ Telugu:    89-92%  ✅ Great                                  │
+│ Bengali:   90-93%  ✅ Great                                  │
+│ Kannada:   88-91%  ✅ Good                                   │
+│                                                              │
+│ Why better: Trained on Indian speech, accents, code-mixing   │
+│ 22 Indian languages supported                                │
+│ Cost: Rs 30/hr = Rs 0.50/min                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Decision: Sarvam AI for India, Whisper for Global Expansion
+
+```
+PHASE 1 (India Market — NOW):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Live STT:     Sarvam AI (via Bolna) — 93-96% Hindi accuracy
+  Storage STT:  Sarvam AI — re-process recording for clean transcript
+  Cost:         Rs 30/hr = ~Rs 4,500/month for 100 calls/day × 3 min avg
+  Languages:    Hindi, Hinglish, Tamil, Telugu, Bengali, Kannada,
+                Marathi, Gujarati, Malayalam + 13 more
+
+  WHY NOT WHISPER FOR INDIA?
+  ❌ 65-75% Hinglish accuracy is not acceptable
+  ❌ Doctor reads transcript → missing words = confusion
+  ❌ Embedding from bad transcript = bad RAG search results
+  ❌ "Tooth pain" transcribed as "to pain" = wrong doctor suggestion
+
+PHASE 2 (Global Expansion — LATER):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Indian calls:  Continue Sarvam AI (best for India)
+  Global calls:  Whisper large-v3 (self-hosted, free, 100+ languages)
+  Routing:       Detect language from phone country code:
+                 +91 → Sarvam AI
+                 +1, +44, +971 etc → Whisper
+
+  # Language routing logic:
+  if (phoneNumber.startsWith('+91')) {
+    sttProvider = 'sarvam';    // India — best accuracy
+  } else {
+    sttProvider = 'whisper';   // Global — free, good enough
+  }
+```
+
+### STT Strategy: Live + Storage
 
 ```
 DURING THE CALL (real-time, <300ms):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Patient speaks → Deepgram/Sarvam (live streaming STT)
+  Patient speaks → Sarvam AI (live streaming STT via Bolna)
   → Text in <300ms → LLM processes → AI responds
+  → Live transcript captured (used for AI conversation)
 
-  WHY NOT WHISPER HERE?
-  Whisper is batch-only. It needs the full audio file first.
-  You can't use it for live conversation — too slow (5-30 sec delay).
-
-AFTER THE CALL (batch, high accuracy):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Call ends → Bolna webhook sends recording URL
-  → BullMQ job: "transcribe_with_whisper"
-  → Worker downloads recording → runs Whisper → clean transcript
-  → Store transcript in PostgreSQL
+AFTER THE CALL (for permanent storage):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Call ends → Bolna sends recording URL + live transcript
+  → BullMQ job: "process_call_transcript"
+  → Worker: re-process recording through Sarvam AI STT
+    (batch mode = even more accurate than live)
+  → Store clean transcript in PostgreSQL
   → Generate embedding → store in pgvector
   → Patient and doctor can read/search it forever
 
-  WHY WHISPER HERE?
-  ✅ FREE (self-hosted, open source)
-  ✅ More accurate than live STT (no time pressure)
-  ✅ Better at Hindi/Hinglish (whisper-large-v3)
-  ✅ Generates timestamps per word (useful for playback sync)
+  WHY RE-PROCESS?
+  Live STT is optimized for speed (<300ms) — may miss words.
+  Batch STT (same Sarvam AI, no time pressure) is 2-5% more accurate.
+  Cost: Rs 0.50/min for both live + batch = Rs 1/min total.
+  For a 3-min call: Rs 3 total. Very affordable.
+```
+
+### Monthly Cost for STT (India Market)
+
+```
+  100 calls/day × 3 min avg = 300 min/day
+
+  Live STT:    300 min × Rs 0.50 = Rs 150/day
+  Storage STT: 300 min × Rs 0.50 = Rs 150/day
+  Total:       Rs 300/day = Rs 9,000/month
+
+  For 50 clinics doing 100 calls/day each:
+  5,000 calls/day × 3 min = 15,000 min/day
+  Rs 15,000/day = Rs 4,50,000/month
+  → Charged to clinics as part of subscription fee
+  → At Rs 2,000/clinic/month → Rs 1,00,000 revenue
+  → Need volume discount from Sarvam (likely 50%+ at this scale)
 ```
 
 ### OpenAI Whisper — Self-Hosted Setup
