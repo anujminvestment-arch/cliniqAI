@@ -1833,6 +1833,485 @@ Survey    Reminder   Reminder    Engine
 - **API security:** Rate limiting, request signing, IP allowlisting (enterprise)
 - **Compliance:** DPDPA consent flows, data export, right-to-deletion
 
+## Knowledge Base — Complete Storage Design
+
+### Why Store in YOUR Database (Not in Bolna/External Service)
+
+```
+❌ WRONG: Store knowledge in Bolna.ai
+   - You lose control of your data
+   - Can't search/update from your admin panel
+   - If you switch voice provider, knowledge is gone
+   - Can't use same knowledge for WhatsApp, web chat, portal
+
+✅ RIGHT: Store knowledge in YOUR PostgreSQL (Supabase)
+   - One source of truth for ALL channels (voice, WhatsApp, web, portal)
+   - Admin panel controls everything
+   - Switch voice provider anytime — knowledge stays
+   - Multi-tenant isolation via RLS
+   - Same knowledge serves voice calls, AI chat, doctor assistant
+```
+
+### Complete Knowledge Base Tables
+
+#### knowledge_base (Main content table)
+```sql
+CREATE TABLE knowledge_base (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id       UUID REFERENCES clinics(id),    -- NULL = platform-wide (Super Admin manages)
+
+  -- Content
+  category        VARCHAR(100) NOT NULL,
+  -- Categories:
+  --   'clinic_info'    → timings, address, parking, directions
+  --   'doctor_profile' → doctor bio, qualifications, languages spoken
+  --   'service'        → procedures, treatments, pricing
+  --   'faq'            → frequently asked questions
+  --   'post_care'      → post-procedure care instructions
+  --   'announcement'   → temporary notices (holiday, new doctor, etc.)
+  --   'health_tip'     → general health awareness content
+  --   'emergency'      → emergency triage rules
+  --   'insurance'      → accepted insurance providers, claim process
+  --   'preparation'    → pre-visit preparation (fasting for blood test, etc.)
+
+  title           VARCHAR(500) NOT NULL,           -- "What are your clinic timings?"
+  content         TEXT NOT NULL,                   -- "Mon-Sat: 10 AM to 6 PM. Sunday closed. Lunch: 1-2 PM."
+
+  -- Multilingual
+  language        VARCHAR(10) DEFAULT 'en',        -- 'en', 'hi', 'ta', 'te', 'kn', 'bn', 'mr'
+
+  -- Organization
+  tags            TEXT[] DEFAULT '{}',             -- ['timing', 'schedule', 'hours']
+  sub_category    VARCHAR(100),                    -- within 'service': 'dental', 'skin', 'ortho'
+  priority        INTEGER DEFAULT 0,               -- higher = more relevant in search results
+
+  -- Linking (optional)
+  doctor_id       UUID REFERENCES doctors(id),     -- if this knowledge is about a specific doctor
+
+  -- Status
+  is_published    BOOLEAN DEFAULT true,
+  valid_from      TIMESTAMPTZ,                     -- for announcements: show from this date
+  valid_until     TIMESTAMPTZ,                     -- for announcements: hide after this date
+
+  -- Change tracking (for embedding updates)
+  content_hash    VARCHAR(64),                     -- SHA256 of title+content
+  last_embedded_at TIMESTAMPTZ,                    -- when embedding was last generated
+
+  -- Audit
+  created_by      UUID,
+  updated_by      UUID,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_kb_clinic_category ON knowledge_base(clinic_id, category, is_published);
+CREATE INDEX idx_kb_tags ON knowledge_base USING GIN(tags);
+CREATE INDEX idx_kb_doctor ON knowledge_base(doctor_id) WHERE doctor_id IS NOT NULL;
+CREATE INDEX idx_kb_validity ON knowledge_base(valid_from, valid_until)
+  WHERE valid_from IS NOT NULL OR valid_until IS NOT NULL;
+```
+
+#### knowledge_base_embeddings (Vector search for RAG)
+```sql
+-- Uses the existing embeddings table with source_type = 'knowledge_base'
+-- Each knowledge_base entry gets ONE embedding (they are typically short)
+
+-- When a knowledge_base entry is created/updated:
+-- 1. Build text: "{title}. {content}. Tags: {tags}. Category: {category}"
+-- 2. Generate embedding via OpenAI text-embedding-3-small
+-- 3. Upsert into embeddings table:
+--    source_type = 'knowledge_base'
+--    source_id = knowledge_base.id
+--    clinic_id = knowledge_base.clinic_id (or NULL for platform-wide)
+--    patient_id = NULL (knowledge base is not patient-specific)
+```
+
+### What Each Category Stores (with Examples)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ CATEGORY: clinic_info                                               │
+│ Scope: Per clinic                                                   │
+│ Managed by: Clinic Owner                                            │
+│                                                                     │
+│ Examples:                                                           │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Clinic timings"                                       │   │
+│ │ Content: "Monday to Saturday: 10 AM to 6 PM.                  │   │
+│ │          Sunday: Closed. Lunch break: 1 PM to 2 PM.           │   │
+│ │          Emergency cases accepted 24/7."                      │   │
+│ │ Tags: ['timing', 'hours', 'schedule', 'open', 'close']       │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Clinic address and directions"                        │   │
+│ │ Content: "City Dental Clinic, 2nd Floor, MG Road Complex,     │   │
+│ │          Above SBI Bank, Koramangala, Bangalore 560034.       │   │
+│ │          Nearest Metro: Koramangala Station (5 min walk).     │   │
+│ │          Nearest Bus: Route 500C, stop at MG Road."           │   │
+│ │ Tags: ['address', 'location', 'directions', 'how to reach']  │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Parking information"                                  │   │
+│ │ Content: "Free parking for patients in basement level B1.     │   │
+│ │          Enter from back gate on 3rd Cross Road.              │   │
+│ │          Two-wheeler parking available at ground floor."      │   │
+│ │ Tags: ['parking', 'vehicle', 'car', 'bike']                  │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: doctor_profile                                            │
+│ Scope: Per clinic, per doctor                                       │
+│ Managed by: Clinic Owner or Doctor                                  │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "About Dr. Sharma"                                     │   │
+│ │ Content: "Dr. Rajesh Sharma is a Senior Dentist with 12 years │   │
+│ │          experience. Specializes in root canals, dental        │   │
+│ │          implants, and cosmetic dentistry. MBBS from AIIMS,   │   │
+│ │          MDS from Manipal. Available Mon-Fri, 10 AM to 5 PM.  │   │
+│ │          Consultation fee: Rs 500. Speaks Hindi & English."   │   │
+│ │ doctor_id: "dr-sharma-uuid"                                   │   │
+│ │ Tags: ['dentist', 'root canal', 'implant', 'cosmetic']       │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: service                                                   │
+│ Scope: Per clinic                                                   │
+│ Managed by: Clinic Owner                                            │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Root Canal Treatment"                                 │   │
+│ │ Content: "Root canal treatment at City Dental costs Rs 3,000  │   │
+│ │          to Rs 8,000 depending on the tooth. Procedure takes  │   │
+│ │          45-60 minutes. Usually completed in 1-2 visits.      │   │
+│ │          We use digital X-ray for precise diagnosis.          │   │
+│ │          Post-treatment crown recommended (Rs 5,000-15,000)." │   │
+│ │ sub_category: 'dental'                                        │   │
+│ │ Tags: ['root canal', 'rct', 'tooth pain', 'nerve treatment'] │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: faq                                                       │
+│ Scope: Per clinic + platform defaults                               │
+│ Managed by: Clinic Owner (clinic) / Super Admin (platform)          │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "How do I book an appointment?"                        │   │
+│ │ Content: "You can book an appointment in 4 ways:              │   │
+│ │          1. Call us at +91-80-XXXX-1001 (AI receptionist)     │   │
+│ │          2. WhatsApp us at +91-80-XXXX-1001                   │   │
+│ │          3. Book online at portal.cliniqai.com                │   │
+│ │          4. Walk-in (token will be assigned at reception)"    │   │
+│ │ Tags: ['book', 'appointment', 'schedule', 'how to']          │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "What insurance do you accept?"                        │   │
+│ │ Content: "We accept: Star Health, ICICI Lombard, Max Bupa,    │   │
+│ │          HDFC Ergo, Bajaj Allianz. Cashless facility          │   │
+│ │          available for dental procedures above Rs 5,000.      │   │
+│ │          Bring your insurance card and valid ID."             │   │
+│ │ Tags: ['insurance', 'cashless', 'claim', 'coverage']         │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: post_care                                                 │
+│ Scope: Platform-wide + clinic overrides                             │
+│ Managed by: Super Admin (defaults) / Clinic Owner (overrides)       │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "After root canal care"                                │   │
+│ │ Content: "After root canal treatment:                         │   │
+│ │          - Avoid eating for 2 hours after the procedure       │   │
+│ │          - Avoid hot food/drinks for 24 hours                 │   │
+│ │          - Take prescribed painkillers as directed            │   │
+│ │          - Mild pain is normal for 2-3 days                   │   │
+│ │          - If severe pain or swelling occurs, call us         │   │
+│ │          - Come back for crown fitting as scheduled"          │   │
+│ │ Tags: ['root canal', 'aftercare', 'post treatment', 'rct']   │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: emergency                                                 │
+│ Scope: Platform-wide                                                │
+│ Managed by: Super Admin                                             │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Chest pain emergency"                                 │   │
+│ │ Content: "If you are experiencing severe chest pain,          │   │
+│ │          tightness, or difficulty breathing:                   │   │
+│ │          1. Call 108 (ambulance) immediately                  │   │
+│ │          2. Go to the nearest emergency room                  │   │
+│ │          3. Do NOT drive yourself                             │   │
+│ │          This is a medical emergency. Do not wait."           │   │
+│ │ Tags: ['chest pain', 'heart attack', 'emergency', 'urgent']  │   │
+│ │ priority: 100  (highest — always surface first)               │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: preparation                                               │
+│ Scope: Per clinic + platform defaults                               │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Before blood test"                                    │   │
+│ │ Content: "For fasting blood test:                             │   │
+│ │          - Do not eat or drink anything (except water) for    │   │
+│ │            10-12 hours before the test                        │   │
+│ │          - You can take prescribed medicines with plain water │   │
+│ │          - Avoid alcohol for 24 hours before                  │   │
+│ │          - Bring your previous reports if available"          │   │
+│ │ Tags: ['blood test', 'fasting', 'lab', 'preparation']        │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ CATEGORY: announcement                                              │
+│ Scope: Per clinic (temporary, with validity dates)                  │
+│                                                                     │
+│ ┌───────────────────────────────────────────────────────────────┐   │
+│ │ Title: "Clinic closed for Holi"                               │   │
+│ │ Content: "Our clinic will be closed on March 14 (Holi).       │   │
+│ │          We will resume normal operations on March 15.        │   │
+│ │          For emergencies, call +91-80-XXXX-1099."             │   │
+│ │ valid_from: 2026-03-12                                        │   │
+│ │ valid_until: 2026-03-15                                       │   │
+│ │ Tags: ['closed', 'holiday', 'holi']                           │   │
+│ └───────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### How Data Flows: Admin Creates → Stored → AI Uses
+
+```
+FLOW 1: Clinic Owner adds a FAQ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Admin Panel → "Add Knowledge Base Entry"
+  Title: "Do you accept UPI payments?"
+  Content: "Yes! We accept all UPI apps: Google Pay, PhonePe,
+           Paytm, BHIM. Scan QR at reception or pay via
+           WhatsApp payment link after consultation."
+  Category: faq
+  Tags: ['upi', 'payment', 'gpay', 'phonepe']
+        │
+        ▼
+  1. INSERT into knowledge_base table
+  2. Compute content_hash = SHA256(title + content)
+  3. Push BullMQ job: { action: "embed", kb_id: "xxx" }
+        │
+        ▼ (async worker, ~2 seconds)
+  4. Build embedding text:
+     "Do you accept UPI payments? Yes! We accept all UPI apps:
+      Google Pay, PhonePe, Paytm, BHIM. Scan QR at reception
+      or pay via WhatsApp payment link after consultation.
+      Tags: upi, payment, gpay, phonepe. Category: faq."
+  5. Call OpenAI text-embedding-3-small → 1536-dim vector
+  6. INSERT into embeddings table:
+     source_type = 'knowledge_base'
+     source_id = kb entry UUID
+     clinic_id = clinic UUID
+     patient_id = NULL (not patient-specific)
+     embedding = [0.023, -0.041, ...]
+  7. Invalidate Redis cache: PUBLISH "invalidate:clinic-a"
+  8. Update knowledge_base.last_embedded_at = now()
+        │
+        ▼
+  DONE. Knowledge is now searchable by AI.
+
+
+FLOW 2: Patient calls and asks about UPI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Patient: "Kya aap Google Pay accept karte ho?"
+(Do you accept Google Pay?)
+        │
+        ▼
+  Bolna AI processes speech → STT → "Google Pay accept karte ho?"
+        │
+        ▼
+  LLM checks: Can I answer from system prompt?
+  System prompt has: clinic name, timings, doctors, fees
+  → NO, payment info is not in system prompt
+        │
+        ▼
+  LLM triggers: search_knowledge_base({
+    clinic_id: "clinic-a",
+    query: "Google Pay accept karte ho?"
+  })
+        │
+        ▼
+  YOUR API endpoint:
+  1. Embed the query: "Google Pay accept karte ho?"
+     → OpenAI embedding → query vector
+  2. Vector search in pgvector:
+     SELECT content_text, metadata
+     FROM embeddings
+     WHERE clinic_id = 'clinic-a'
+       AND source_type = 'knowledge_base'
+     ORDER BY embedding <=> $query_vector
+     LIMIT 3;
+  3. Top result: "Do you accept UPI payments? Yes! We accept
+     all UPI apps: Google Pay, PhonePe, Paytm..."
+     Similarity: 0.94 (very high match)
+  4. Return to LLM
+        │
+        ▼
+  LLM generates response in Hindi:
+  "Haan ji! Hum Google Pay, PhonePe, Paytm, BHIM sab
+   accept karte hain. Aap reception par QR scan kar
+   sakte hain ya WhatsApp pe payment link bhi mil jayega."
+        │
+        ▼
+  TTS converts to Hindi audio → Patient hears answer
+```
+
+### How Knowledge Base Serves Different Channels
+
+```
+SAME knowledge_base table serves ALL channels:
+
+┌─────────────────────┐
+│   knowledge_base    │
+│   (PostgreSQL)      │
+│                     │
+│   + embeddings      │
+│   (pgvector)        │
+│                     │
+│   + Redis cache     │
+└──────────┬──────────┘
+           │
+     ┌─────┼─────┬─────────┬──────────┐
+     │     │     │         │          │
+     ▼     ▼     ▼         ▼          ▼
+  📞Voice  💬WhatsApp  💻Portal  🤖AI Chat  👨‍⚕️Doctor
+   Call     Bot       Search    Patient    Assistant
+
+Patient calls:                    Patient on portal:
+"Parking hai?"                    Search bar: "parking"
+→ RAG search → answer             → Same RAG search → show results
+
+WhatsApp:                         Doctor asks AI:
+"Insurance accept?"               "What post-care for root canal?"
+→ Same RAG search → answer         → Same RAG search → answer
+```
+
+### Structured Data vs Embedded Data (Which Goes Where)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│          WHAT GOES IN STRUCTURED DB (SQL queries)              │
+│                                                                │
+│  These are EXACT lookups — not fuzzy/semantic:                 │
+│                                                                │
+│  ✅ Clinic timings         → clinics.timings (JSONB)          │
+│  ✅ Doctor fee             → doctors.consultation_fee          │
+│  ✅ Doctor schedule        → doctor_schedules table            │
+│  ✅ Available slots        → appointments table (gaps)         │
+│  ✅ Queue status           → queue_entries table (live)        │
+│  ✅ Patient details        → patients table                    │
+│  ✅ Appointment history    → appointments table                │
+│  ✅ Prescription items     → prescription_items table          │
+│  ✅ Lab report values      → lab_reports.extracted_data (JSONB)│
+│  ✅ Review ratings         → doctor_reviews table              │
+│  ✅ Symptom→specialization → symptom_specialization_map table  │
+│                                                                │
+│  Accessed via: FUNCTION CALLING (AI calls your API → SQL query)│
+│  Speed: ~50-200ms                                              │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│          WHAT GOES IN EMBEDDINGS (RAG/vector search)           │
+│                                                                │
+│  These need SEMANTIC/FUZZY matching:                            │
+│                                                                │
+│  ✅ FAQs                   → knowledge_base + embeddings       │
+│  ✅ Service descriptions   → knowledge_base + embeddings       │
+│  ✅ Post-care instructions → knowledge_base + embeddings       │
+│  ✅ Doctor bios (detailed) → knowledge_base + embeddings       │
+│  ✅ Medical guidelines     → knowledge_base + embeddings       │
+│  ✅ Health tips            → knowledge_base + embeddings       │
+│  ✅ Emergency triage info  → knowledge_base + embeddings       │
+│  ✅ Preparation instructions → knowledge_base + embeddings     │
+│  ✅ Insurance info         → knowledge_base + embeddings       │
+│  ✅ Past prescriptions     → embeddings (for patient AI chat)  │
+│  ✅ Consultation notes     → embeddings (for doctor AI chat)   │
+│  ✅ Call transcripts       → embeddings (for search)           │
+│                                                                │
+│  Accessed via: RAG SEARCH (embed query → cosine similarity)    │
+│  Speed: ~5-20ms                                                │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│          WHAT GOES IN REDIS CACHE (instant access)             │
+│                                                                │
+│  These are READ VERY FREQUENTLY:                               │
+│                                                                │
+│  ✅ System prompts per clinic → assembled from clinic+doctors  │
+│  ✅ Frequently asked FAQ answers (semantic cache)              │
+│  ✅ Active call session state                                  │
+│  ✅ Rate limit counters                                        │
+│                                                                │
+│  Accessed via: Redis GET (key-value lookup)                    │
+│  Speed: <1ms                                                   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### System Prompt Assembly (How Clinic Info Becomes AI's Brain)
+
+```typescript
+// This runs once per clinic, cached in Redis for 1 hour
+
+async function buildSystemPrompt(clinicId: string): Promise<string> {
+  // 1. Get clinic info
+  const clinic = await db.select().from(clinics)
+    .where(eq(clinics.id, clinicId)).limit(1);
+
+  // 2. Get all active doctors
+  const doctors = await db.select().from(doctorsTable)
+    .where(and(eq(doctorsTable.clinicId, clinicId), eq(doctorsTable.isActive, true)));
+
+  // 3. Get active announcements
+  const announcements = await db.select().from(knowledgeBase)
+    .where(and(
+      eq(knowledgeBase.clinicId, clinicId),
+      eq(knowledgeBase.category, 'announcement'),
+      eq(knowledgeBase.isPublished, true),
+      lte(knowledgeBase.validFrom, new Date()),
+      gte(knowledgeBase.validUntil, new Date())
+    ));
+
+  // 4. Assemble prompt
+  const prompt = `
+You are the AI receptionist for ${clinic.name}.
+Address: ${clinic.address}.
+Timings: ${formatTimings(clinic.timings)}.
+${announcements.length > 0 ? `\nIMPORTANT: ${announcements.map(a => a.content).join('. ')}` : ''}
+
+Available Doctors:
+${doctors.map(d => `- ${d.name} (${d.specialization}), Fee: Rs ${d.consultationFee}, Rating: ${d.avgRating}/5`).join('\n')}
+
+Your capabilities:
+- Book, cancel, reschedule appointments
+- Check queue status and share wait times
+- Register new patients
+- Answer clinic FAQs (use search_knowledge_base tool)
+- Suggest doctors based on symptoms
+- Transfer to human staff for complex issues
+
+Rules:
+- Always greet warmly with the clinic name
+- Respond in the patient's language (Hindi, English, or mixed)
+- For medical emergencies (chest pain, breathing difficulty, severe bleeding), tell patient to call 108
+- Never provide medical diagnosis — only suggest which doctor to see
+- Always confirm details before booking
+`;
+
+  // 5. Cache in Redis
+  await redis.set(`system_prompt:${clinicId}`, prompt, { ex: 3600 }); // 1 hour TTL
+
+  return prompt;
+}
+```
+
 ## Design Decisions
 
 | Date       | Decision                                | Rationale                                              |
@@ -1846,3 +2325,7 @@ Survey    Reminder   Reminder    Engine
 | 2026-03-13 | Integrate telemedicine, don't build     | Per BA — use Jitsi/Daily/Twilio, not custom video      |
 | 2026-03-13 | Patient portal is cross-tenant          | Per BA — patient sees all their clinics in one place   |
 | 2026-03-13 | EHR integration via FHIR, not replace   | Per BA — don't build EMR, integrate with existing ones |
+| 2026-03-15 | Knowledge base in YOUR DB, not Bolna    | Data ownership, multi-channel reuse, portability       |
+| 2026-03-15 | 3-layer knowledge: prompt + RAG + API   | Static=cache, fuzzy=embeddings, live=function calls    |
+| 2026-03-15 | BullMQ for conversation ingestion       | Node.js native, reliable, right-sized for startup      |
+| 2026-03-15 | Redis semantic cache for FAQs           | Same question answered once, cached for all callers    |
