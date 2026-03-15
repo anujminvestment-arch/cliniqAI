@@ -834,6 +834,211 @@ Patient uploads lab report (PDF/image)
 
 ---
 
+## STT Provider Routing Architecture
+
+### How It Works: Auto-Switch STT Based on Caller Number
+
+```
+Incoming call from +91-98765-43210
+        │
+        ▼
+┌────────────────────────────────────────────────┐
+│ STT ROUTER (runs before Bolna processes audio) │
+│                                                │
+│ Input: caller phone number                     │
+│                                                │
+│ Step 1: Extract country code                   │
+│   "+91-98765-43210" → country_code = "+91"     │
+│                                                │
+│ Step 2: Lookup routing rule                    │
+│   Query stt_routing_rules table:               │
+│   SELECT provider FROM stt_routing_rules       │
+│   WHERE country_code = '+91';                  │
+│   → Result: "sarvam"                           │
+│                                                │
+│ Step 3: Check clinic override (optional)       │
+│   Some clinics may force a specific provider:  │
+│   SELECT stt_override FROM clinics             │
+│   WHERE id = $clinic_id;                       │
+│   → If set, use clinic's override instead      │
+│                                                │
+│ Step 4: Configure Bolna agent with provider    │
+│   → Set STT = Sarvam AI for this call          │
+│                                                │
+└────────────────────────────────────────────────┘
+```
+
+### Routing Rules Table
+
+```sql
+CREATE TABLE stt_routing_rules (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_code    VARCHAR(10) NOT NULL UNIQUE,    -- "+91", "+1", "+44"
+  country_name    VARCHAR(100),                   -- "India", "United States"
+  provider        VARCHAR(50) NOT NULL,           -- "sarvam", "whisper"
+  languages       TEXT[],                         -- ["hi", "ta", "te", "en"]
+  priority        INTEGER DEFAULT 0,              -- for prefix matching order
+  is_active       BOOLEAN DEFAULT true,
+  notes           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Default routing rules (seeded by Super Admin)
+INSERT INTO stt_routing_rules (country_code, country_name, provider, languages, notes) VALUES
+  -- PHASE 1: India — Sarvam AI (best for Indian languages)
+  ('+91',  'India',          'sarvam',  ARRAY['hi','ta','te','bn','mr','kn','gu','ml','pa','en'], 'Primary market'),
+
+  -- PHASE 2: Global — Whisper (free, 100+ languages)
+  ('+1',   'US/Canada',      'whisper', ARRAY['en','es'],      'English + Spanish'),
+  ('+44',  'UK',             'whisper', ARRAY['en'],           'English'),
+  ('+61',  'Australia',      'whisper', ARRAY['en'],           'English'),
+  ('+971', 'UAE',            'whisper', ARRAY['ar','en','hi'], 'Arabic + English + Hindi diaspora'),
+  ('+966', 'Saudi Arabia',   'whisper', ARRAY['ar','en'],      'Arabic + English'),
+  ('+65',  'Singapore',      'sarvam',  ARRAY['ta','hi','en'], 'Indian diaspora — Sarvam better'),
+  ('+60',  'Malaysia',       'sarvam',  ARRAY['ta','en'],      'Indian diaspora — Sarvam better'),
+  ('+27',  'South Africa',   'whisper', ARRAY['en'],           'English'),
+  ('+49',  'Germany',        'whisper', ARRAY['de','en'],      'German + English'),
+  ('+33',  'France',         'whisper', ARRAY['fr','en'],      'French + English'),
+  ('+81',  'Japan',          'whisper', ARRAY['ja','en'],      'Japanese + English');
+
+-- Clinic-level override (in clinics table)
+-- ALTER TABLE clinics ADD COLUMN stt_override VARCHAR(50);
+-- If set to "sarvam" or "whisper", ignores country-based routing for this clinic
+```
+
+### Phase 1 vs Phase 2 Implementation
+
+```
+PHASE 1 (India Market — NOW):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Implementation: Simple — hardcode Sarvam AI everywhere
+  No routing logic needed yet
+  All calls are +91
+
+  // Phase 1: Simple
+  const sttProvider = 'sarvam';  // Always Sarvam for India
+
+PHASE 2 (Global Expansion — LATER):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Implementation: Add routing layer
+  Lookup caller number → match country code → select provider
+
+  // Phase 2: Smart routing
+  function getSTTProvider(callerNumber: string, clinicId: string): string {
+    // 1. Check clinic override
+    const clinic = getClinic(clinicId);
+    if (clinic.stt_override) return clinic.stt_override;
+
+    // 2. Extract country code from phone number
+    const countryCode = extractCountryCode(callerNumber);
+    // "+91-98765-43210" → "+91"
+
+    // 3. Lookup routing rule
+    const rule = db.select().from(sttRoutingRules)
+      .where(eq(sttRoutingRules.countryCode, countryCode))
+      .limit(1);
+
+    if (rule) return rule.provider;  // "sarvam" or "whisper"
+
+    // 4. Default fallback
+    return 'whisper';  // Whisper handles 100+ languages
+  }
+
+MIGRATION PATH (Phase 1 → Phase 2):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Step 1: Create stt_routing_rules table (can do now, costs nothing)
+  Step 2: Seed with India row: +91 → sarvam
+  Step 3: All code uses getSTTProvider() but always returns "sarvam"
+  Step 4: When first international clinic signs up:
+    a. Install Whisper on your VPS (pip install faster-whisper)
+    b. Add their country code to stt_routing_rules → "whisper"
+    c. Test with sample calls
+    d. Done — routing works automatically
+```
+
+### How Bolna.ai Switches STT Provider Per Call
+
+```
+Bolna supports multiple STT providers.
+You configure which one to use PER AGENT or PER CALL.
+
+METHOD 1: Separate Bolna Agents (simpler)
+  Agent "india-receptionist"  → STT: Sarvam AI
+  Agent "global-receptionist" → STT: Whisper
+
+  Your webhook decides which agent to activate:
+  Call comes in → extract country code → select agent → Bolna routes
+
+METHOD 2: Dynamic STT via Bolna API (flexible)
+  Bolna API allows setting STT provider in the agent config:
+  POST /agent/create-or-update
+  {
+    "agent_config": {
+      "transcriber": {
+        "provider": "sarvam",        // or "deepgram" for Whisper-like
+        "language": "hi",
+        "model": "saaras-v3"
+      }
+    }
+  }
+
+  Before each call, update the agent's STT config dynamically.
+
+RECOMMENDED: Method 1 (separate agents)
+  Simpler, no per-call API overhead.
+  Create 2 agents: India + Global.
+  Route based on country code.
+```
+
+### Post-Call Transcript: Same Routing
+
+```
+After call ends → BullMQ job: "generate_transcript"
+        │
+        ▼
+  Worker reads: conversation.stt_provider (set during the call)
+
+  if (sttProvider === 'sarvam') {
+    // Re-process recording through Sarvam API (batch mode)
+    transcript = await sarvamSTT.transcribe(recordingUrl);
+  } else {
+    // Process through self-hosted Whisper
+    transcript = await whisperSTT.transcribe(recordingUrl, { model: 'large-v3' });
+  }
+
+  // Store clean transcript
+  await db.update(conversations)
+    .set({ transcript, stt_provider: sttProvider })
+    .where(eq(conversations.id, conversationId));
+
+  // Generate embedding from transcript (same regardless of provider)
+  const embedding = await generateEmbedding(transcript);
+  await storeEmbedding(embedding, conversationId);
+```
+
+### Fallback & Error Handling
+
+```
+PRIMARY PROVIDER FAILS?
+━━━━━━━━━━━━━━━━━━━━━━
+  Sarvam API down → auto-fallback to Whisper (self-hosted, always available)
+  Whisper crashes → retry 3x → alert ops team → use Sarvam as backup
+
+  // Fallback chain
+  try {
+    transcript = await primaryProvider.transcribe(recording);
+  } catch (error) {
+    log.warn(`${primaryProvider} failed, falling back to ${fallbackProvider}`);
+    transcript = await fallbackProvider.transcribe(recording);
+  }
+
+  Whisper is self-hosted on YOUR server → no external dependency
+  It's always available as the ultimate fallback.
+```
+
+---
+
 ## AI Smart Doctor Suggestion Engine
 
 ### How Symptom → Doctor Matching Works
