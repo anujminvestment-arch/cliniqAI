@@ -26,7 +26,9 @@
 18. [Rate Limiting & Security](#18-rate-limiting--security)
 19. [Monitoring & Analytics](#19-monitoring--analytics)
 20. [End-to-End System Design](#20-end-to-end-system-design)
-21. [Cost Estimation](#21-cost-estimation)
+21. [Knowledge Base System](#21-knowledge-base-system)
+22. [Conversation Storage & Queue Architecture](#22-conversation-storage--queue-architecture)
+23. [Cost Estimation](#23-cost-estimation)
 
 ---
 
@@ -52,6 +54,8 @@
 | **Real-Time** | Supabase Realtime | Queue updates, notifications, included | Free (included) |
 | **Video** | Jitsi Meet (self-hosted) or Daily.co | Free/cheap video consultation | Free-$99/mo |
 | **Rate Limiting** | @upstash/ratelimit + Upstash Redis | Edge-native, Next.js compatible | $10/mo |
+| **Knowledge Base** | PostgreSQL + pgvector + Redis cache | Structured + semantic + cached | Included |
+| **Message Queue** | BullMQ (on Redis) | Conversation ingestion, background jobs | Free |
 | **Monitoring** | Sentry (errors) + Upstash (analytics) | Error tracking, performance | Free-$26/mo |
 | **Hosting** | Vercel (frontend) + Supabase (backend) | Optimized for Next.js | $20-40/mo |
 
@@ -1516,7 +1520,393 @@ const { success, limit, remaining } = await ratelimit.limit(identifier);
 
 ---
 
-## 21. Cost Estimation
+## 21. Knowledge Base System
+
+### Architecture: What Goes Where
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                   KNOWLEDGE BASE LAYERS                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  LAYER 1: SYSTEM PROMPT (static, cached in Redis)              │
+│  ─────────────────────────────────────────────────              │
+│  What: Clinic name, address, timings, doctor names              │
+│  Storage: PostgreSQL → Redis cache (TTL: 1 hour)               │
+│  Update: Admin changes clinic info → cache invalidated         │
+│  Used by: AI voice agent system prompt (every call)            │
+│  Speed: <1ms (from cache)                                      │
+│                                                                │
+│  Example system prompt:                                        │
+│  "You are the AI receptionist for City Dental Clinic.          │
+│   Address: MG Road, Bangalore. Timings: Mon-Sat 10AM-6PM.     │
+│   Doctors: Dr. Sharma (Dentist, Rs 500), Dr. Priya (Dentist,  │
+│   Rs 300), Dr. Ravi (Orthopedic, Rs 400).                      │
+│   Emergency number: +91-80-XXXX-1099."                         │
+│                                                                │
+│  LAYER 2: RAG (semantic search, pgvector embeddings)           │
+│  ────────────────────────────────────────────────               │
+│  What: FAQs, medical guidelines, procedure descriptions,       │
+│        post-visit care, health tips, doctor bios               │
+│  Storage: PostgreSQL + pgvector embeddings                     │
+│  Update: Admin adds/edits FAQ → auto re-embed                  │
+│  Used by: When patient asks a question not in system prompt    │
+│  Speed: ~5-20ms (vector search)                                │
+│                                                                │
+│  LAYER 3: FUNCTION CALLING (real-time API, live data)          │
+│  ─────────────────────────────────────────────────              │
+│  What: Slot availability, queue status, patient records         │
+│  Storage: PostgreSQL (live queries)                             │
+│  Update: Changes every second (queue) / every minute (slots)   │
+│  Used by: AI calls your API during live conversation           │
+│  Speed: ~50-200ms (DB query)                                   │
+│                                                                │
+│  LAYER 4: SYMPTOM MAPPING (hybrid: DB lookup + AI fallback)    │
+│  ──────────────────────────────────────────────────────         │
+│  What: Symptom → doctor specialization matching                │
+│  Storage: symptom_specialization_map table + Claude fallback   │
+│  Update: Super Admin adds new symptom mappings                 │
+│  Speed: <5ms (DB lookup), ~500ms (Claude fallback)             │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Knowledge Base Database Schema
+
+```sql
+-- Clinic-level knowledge base entries
+CREATE TABLE knowledge_base (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id       UUID REFERENCES clinics(id),    -- NULL = platform-wide (Super Admin)
+  category        VARCHAR(100) NOT NULL,           -- 'faq', 'service', 'post_care', 'announcement', 'guideline', 'health_tip'
+  title           VARCHAR(500) NOT NULL,           -- "What insurance do you accept?"
+  content         TEXT NOT NULL,                   -- "We accept Star Health, ICICI Lombard..."
+  language        VARCHAR(10) DEFAULT 'en',        -- 'en', 'hi', 'ta', 'te'
+  tags            TEXT[] DEFAULT '{}',             -- ['insurance', 'payment', 'billing']
+  is_published    BOOLEAN DEFAULT true,
+  priority        INTEGER DEFAULT 0,               -- higher = shown first in search
+  content_hash    VARCHAR(64),                     -- SHA256 of content (for change detection)
+  created_by      UUID,                            -- admin who created
+  updated_by      UUID,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_kb_clinic ON knowledge_base(clinic_id, category, is_published);
+CREATE INDEX idx_kb_tags ON knowledge_base USING GIN(tags);
+
+-- Embeddings for knowledge base entries (in the existing embeddings table)
+-- source_type = 'knowledge_base', source_id = knowledge_base.id
+```
+
+### How AI Uses Knowledge Base During a Call
+
+```
+Patient calls: +91-80-XXXX-1001
+        │
+        ▼
+┌───────────────────────────────────────────────┐
+│ STEP 1: LOAD SYSTEM PROMPT (from Redis cache) │
+│                                               │
+│ Redis key: "system_prompt:clinic-a"           │
+│                                               │
+│ Contains:                                     │
+│ - Clinic name, address, timings               │
+│ - Doctor names + specializations + fees       │
+│ - Greeting script                             │
+│ - Language preference                         │
+│                                               │
+│ If cache miss → query PostgreSQL → cache it   │
+└───────────────┬───────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────────────────┐
+│ STEP 2: AI GREETS PATIENT                     │
+│                                               │
+│ "Namaste! Welcome to City Dental Clinic.      │
+│  Main aapki kya madad kar sakta hoon?"        │
+└───────────────┬───────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────────────────┐
+│ STEP 3: PATIENT ASKS QUESTION                 │
+│                                               │
+│ "Aapke clinic mein parking hai?"              │
+│ (Is there parking at your clinic?)            │
+│                                               │
+│ AI checks: Is this answerable from            │
+│ system prompt? → NO                           │
+│                                               │
+│ AI triggers: RAG search                       │
+│ → Embed question                              │
+│ → Search knowledge_base embeddings            │
+│   WHERE clinic_id = $clinic_id                │
+│ → Found: "Free parking available for          │
+│   patients in basement level B1.              │
+│   Enter from back gate."                      │
+│                                               │
+│ AI responds: "Haan ji, humare clinic mein     │
+│ free parking hai basement level B1 mein.      │
+│ Back gate se enter karein."                   │
+└───────────────┬───────────────────────────────┘
+                │
+                ▼
+┌───────────────────────────────────────────────┐
+│ STEP 4: PATIENT ASKS ABOUT SYMPTOMS           │
+│                                               │
+│ "Mujhe daat mein dard hai"                    │
+│ (I have tooth pain)                           │
+│                                               │
+│ AI triggers: FUNCTION CALL                    │
+│ → search_doctors(symptoms: "tooth pain")      │
+│ → Your API queries:                           │
+│   1. symptom_specialization_map → "Dentist"   │
+│   2. doctors WHERE specialization = Dentist   │
+│   3. queue_entries for each doctor (LIVE)     │
+│   4. appointments for slot availability       │
+│                                               │
+│ AI responds with doctor suggestions           │
+│ (fee, rating, queue, token)                   │
+└───────────────────────────────────────────────┘
+```
+
+### Knowledge Base Admin Panel (Super Admin / Clinic Owner)
+
+```
+Admin Dashboard → Knowledge Base
+    │
+    ├── Platform Knowledge Base (Super Admin only)
+    │   ├── Symptom Mappings (add/edit/delete)
+    │   ├── Medical Guidelines
+    │   ├── Emergency Triage Rules
+    │   └── Health Tips
+    │
+    └── Clinic Knowledge Base (Clinic Owner)
+        ├── Clinic Info (timings, address, parking, directions)
+        ├── Doctor Profiles (bio, qualifications, schedule)
+        ├── Services & Pricing
+        ├── FAQs (custom per clinic)
+        ├── Post-Visit Care Instructions
+        └── Announcements
+
+Actions:
+  [Add Entry] → fill title, content, category, tags, language
+  [Edit Entry] → modify → auto re-embed on save
+  [Delete Entry] → soft delete, remove embedding
+  [Preview] → "Test: Ask a question against this knowledge base"
+  [Bulk Import] → CSV/JSON upload
+  [Version History] → who changed what, when, diff view
+```
+
+### Embedding Update Pipeline
+
+```
+Admin creates/updates knowledge base entry
+        │
+        ▼
+┌───────────────────────────────────────────────┐
+│ 1. Save to PostgreSQL (knowledge_base table)  │
+│ 2. Compute content_hash (SHA256)              │
+│ 3. Compare with existing hash                 │
+│    → If same: skip (no change)                │
+│    → If different: continue                   │
+│ 4. Push job to BullMQ: "re-embed"             │
+└───────────────┬───────────────────────────────┘
+                │
+                ▼ (async, BullMQ worker)
+┌───────────────────────────────────────────────┐
+│ 5. Generate embedding (OpenAI text-embedding) │
+│ 6. Upsert into embeddings table               │
+│ 7. Invalidate Redis cache for this clinic     │
+│ 8. Log: "KB entry XYZ re-embedded"            │
+└───────────────────────────────────────────────┘
+```
+
+---
+
+## 22. Conversation Storage & Queue Architecture
+
+### Tools
+
+| Component | Tool | Cost |
+|-----------|------|------|
+| Message Queue | **BullMQ** (on Redis) | Free (open source) |
+| Cache | **Upstash Redis** or self-hosted | $10/mo (Upstash) |
+| Conversation DB | **PostgreSQL** (Supabase) | Included |
+| Transcription | **Sarvam AI** (via Bolna) or **Deepgram** | Rs 30/hr (Sarvam) |
+| Voice AI | **Bolna.ai** | $0.02-0.04/min platform + usage |
+
+### Why BullMQ (not Kafka, not RabbitMQ)
+
+```
+BullMQ:
+  ✅ Built for Node.js/TypeScript (your stack)
+  ✅ Runs on Redis (you already need Redis for caching)
+  ✅ At-least-once delivery (no data loss)
+  ✅ Retries with exponential backoff
+  ✅ Dead-letter queue for failed jobs
+  ✅ Job scheduling (follow-up reminders, report generation)
+  ✅ 10K messages/second (enough for 1000+ clinics)
+  ✅ Free, open source
+  ❌ Not distributed (Redis is single-node) — fine for startup scale
+
+Kafka:
+  ❌ Overkill (millions/second capacity vs your thousands)
+  ❌ Complex to operate (ZooKeeper, partitions, consumer groups)
+  ❌ Expensive infrastructure
+  → Use only if you hit 10K+ concurrent clinics (Phase 4+)
+
+RabbitMQ:
+  ❌ Not Node.js native (Erlang-based)
+  ❌ More complex routing than needed
+  → Better for complex multi-service architectures
+```
+
+### Conversation Storage Flow
+
+```
+VOICE CALL (Bolna.ai):
+  Call ends → Bolna sends webhook POST to /api/webhooks/bolna
+        │
+        ▼
+  Webhook handler:
+    1. Validate webhook signature
+    2. Return 200 OK immediately (don't block)
+    3. Push job to BullMQ: { type: "voice_call", data: webhookPayload }
+        │
+        ▼
+  BullMQ Worker processes:
+    1. Parse: call_id, transcript, duration, recording_url, extracted_data
+    2. Deduplicate: check if call_id already exists (idempotency)
+    3. Store in conversations table
+    4. Store individual messages in conversation_messages table
+    5. Store extracted data (symptoms, appointment, patient info)
+    6. Generate embedding from transcript
+    7. Update analytics (call count, avg duration, resolution rate)
+    8. If failed → retry 3x → dead-letter queue → alert
+
+WHATSAPP (API webhook):
+  Message received → POST /api/webhooks/whatsapp
+        │
+        ▼
+  Same pattern: acknowledge → queue → worker → store → embed
+
+WEB CHAT (real-time):
+  Message sent → WebSocket/Server Action
+        │
+        ▼
+  Store directly in PostgreSQL (no queue needed for web chat —
+  it's already in your server process)
+  Generate embedding async via BullMQ
+```
+
+### Conversation Database Tables
+
+```sql
+-- Unified conversation record (all channels)
+CREATE TABLE conversations (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id       UUID NOT NULL REFERENCES clinics(id),
+  patient_id      UUID REFERENCES patients(id),
+  channel         VARCHAR(20) NOT NULL,           -- 'voice', 'whatsapp', 'web_chat', 'doctor_chat'
+
+  -- External IDs for deduplication
+  external_id     VARCHAR(255) UNIQUE,            -- Bolna call_id / WhatsApp message_id
+
+  -- Timing
+  started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at        TIMESTAMPTZ,
+  duration_seconds INTEGER,
+
+  -- AI analysis
+  ai_summary      TEXT,                            -- auto-generated summary
+  sentiment       VARCHAR(20),                     -- positive, neutral, negative
+  primary_intent  VARCHAR(50),                     -- book_appointment, check_queue, clinic_info, etc.
+  resolution      VARCHAR(50),                     -- resolved, transferred, abandoned, failed
+  language        VARCHAR(10),                     -- detected language
+
+  -- Voice-specific
+  recording_url   TEXT,                            -- call recording (Cloudflare R2)
+  transcript_url  TEXT,                            -- full transcript file
+
+  -- Actions taken during conversation
+  actions         JSONB DEFAULT '[]',
+  -- [{"action": "appointment_booked", "id": "apt-xxx"},
+  --  {"action": "patient_registered", "id": "pat-xxx"}]
+
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_conversations_clinic ON conversations(clinic_id, started_at);
+CREATE INDEX idx_conversations_patient ON conversations(patient_id);
+CREATE INDEX idx_conversations_channel ON conversations(channel, started_at);
+
+-- Individual messages within a conversation
+CREATE TABLE conversation_messages (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(id),
+  role            VARCHAR(20) NOT NULL,            -- 'patient', 'ai', 'doctor', 'staff'
+  content         TEXT NOT NULL,
+  message_type    VARCHAR(20) DEFAULT 'text',      -- text, voice_note, image, file
+  intent          VARCHAR(50),                     -- detected intent for this message
+  confidence      DECIMAL(3,2),                    -- AI confidence score
+  metadata        JSONB DEFAULT '{}',              -- additional data
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_conv_messages ON conversation_messages(conversation_id, created_at);
+
+-- Structured data extracted from conversations
+CREATE TABLE conversation_extractions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(id),
+  key             VARCHAR(100) NOT NULL,           -- 'symptoms', 'preferred_doctor', 'preferred_date'
+  value           TEXT NOT NULL,
+  confidence      DECIMAL(3,2),
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Caching Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              REDIS CACHE LAYERS                  │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  L1: System Prompts (per clinic)                │
+│  Key: "sp:{clinic_id}"                          │
+│  TTL: 1 hour                                    │
+│  Invalidate: on clinic/doctor profile update    │
+│  Contains: AI greeting, clinic info, doctor list│
+│                                                 │
+│  L2: Semantic Cache (FAQ answers)               │
+│  Key: "faq:{clinic_id}:{query_hash}"            │
+│  TTL: 30 minutes                                │
+│  Invalidate: on knowledge_base update           │
+│  Contains: Previously answered FAQ responses    │
+│  Example: "parking?" → cached answer            │
+│                                                 │
+│  L3: Session Cache (active calls)               │
+│  Key: "session:{call_id}"                       │
+│  TTL: 30 minutes (auto-expire after call)       │
+│  Contains: Patient context, conversation state  │
+│                                                 │
+│  L4: Rate Limit Counters                        │
+│  Key: "rl:{ip}:{endpoint}"                      │
+│  TTL: sliding window                            │
+│                                                 │
+│  Cache Invalidation:                            │
+│  Redis Pub/Sub → all app instances              │
+│  Admin updates clinic → PUBLISH "invalidate"    │
+│  → all servers clear relevant cache keys        │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## 23. Cost Estimation
 
 ### MVP Monthly Cost (50 clinics, 5K patients)
 

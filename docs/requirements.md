@@ -30,15 +30,73 @@
 - [ ] Tenant-level data isolation enforced at database and API layers
 
 ### AI Voice Receptionist
-- [ ] Answer clinic calls via AI voice assistant
+- [ ] Answer clinic calls via AI voice assistant (Bolna.ai + Exotel)
+- [ ] AI greets with clinic name: "Welcome to City Dental Clinic, how can I help?"
 - [ ] Book, cancel, and reschedule appointments by phone
-- [ ] Provide doctor availability and clinic timings
-- [ ] Share queue status with callers
+- [ ] Provide doctor availability and clinic timings from knowledge base
+- [ ] Share queue status with callers (real-time via function calling)
 - [ ] Register new patients via phone
-- [ ] **Smart Doctor Suggestion**: Analyze symptoms on call → suggest matching doctor by specialization
-- [ ] Show doctor's consultation fee, rating, experience, and current queue on call
+- [ ] **Smart Doctor Suggestion**: Analyze symptoms on call → match specialization → suggest best doctor with fee, rating, queue, token
 - [ ] Assign token number and share estimated wait time
-- [ ] Support regional languages (Hindi, Tamil, Telugu, Kannada, etc.)
+- [ ] Support regional languages (Hindi, Tamil, Telugu, Kannada, Bengali, Marathi + Hinglish code-switching)
+- [ ] After-hours handling with different scripts and emergency routing
+- [ ] Transfer to human receptionist when AI cannot resolve (warm handoff with call summary)
+- [ ] Store complete call transcript + AI summary in database (real-time sync via webhook + BullMQ queue)
+- [ ] Post-call actions: WhatsApp confirmation, SMS backup, embedding generation, analytics update
+
+### Knowledge Base System
+- [ ] **Clinic Knowledge Base** (per tenant — managed by Clinic Owner/Super Admin):
+  - [ ] Clinic info: name, address, timings, holidays, directions, parking, services offered
+  - [ ] Doctor profiles: name, specialization, qualifications, experience, consultation fee, availability schedule, bio
+  - [ ] Services catalog: procedures offered, descriptions, pricing, preparation instructions
+  - [ ] FAQs: "How to book?", "What insurance accepted?", "Where to park?", custom clinic FAQs
+  - [ ] Post-visit care instructions: per procedure type (e.g., "After root canal, avoid hot food for 24 hours")
+  - [ ] Announcements: "Clinic closed on Holi", "New doctor joining", "COVID testing available"
+- [ ] **Medical Knowledge Base** (platform-wide — managed by Super Admin):
+  - [ ] Symptom → specialization mapping (50+ symptoms pre-seeded, clinics can add custom)
+  - [ ] Common condition descriptions (patient-friendly explanations)
+  - [ ] Emergency triage rules: chest pain → "Call 108 immediately", high fever child → "Visit ER"
+  - [ ] Medication general info (not prescriptions — general safety info)
+  - [ ] Health tips and preventive care content
+- [ ] **Knowledge Base Admin Panel** (Super Admin + Clinic Owner):
+  - [ ] CRUD interface for all knowledge base entries
+  - [ ] Bulk import/export (CSV, JSON)
+  - [ ] Preview: "Test this question against the knowledge base" before publishing
+  - [ ] Version history: see who changed what, when
+  - [ ] Auto-embed: when content is created/updated, automatically generate/update vector embeddings
+- [ ] **Knowledge Base Serving** (how AI uses it):
+  - [ ] Static info (clinic name, timings) → injected into AI system prompt (cached in Redis, 1hr TTL)
+  - [ ] FAQs and medical guidelines → RAG via pgvector embeddings (semantic search)
+  - [ ] Dynamic info (queue status, slot availability) → real-time function calling to API
+  - [ ] Hybrid: system prompt + RAG + function calling used together during every call/chat
+
+### Conversation Storage & Sync
+- [ ] Store ALL conversations from ALL channels in unified format:
+  - [ ] Voice calls (Bolna.ai → webhook → BullMQ → PostgreSQL)
+  - [ ] WhatsApp messages (WhatsApp API → webhook → BullMQ → PostgreSQL)
+  - [ ] Web chat (WebSocket → BullMQ → PostgreSQL)
+  - [ ] In-app doctor-patient chat (direct to PostgreSQL)
+- [ ] Each conversation stored as structured record:
+  - [ ] Conversation metadata: channel, patient_id, clinic_id, start/end time, status, sentiment
+  - [ ] Individual messages: role (patient/AI/doctor), content, timestamp, intent detected
+  - [ ] Extracted data: appointment booked, symptoms mentioned, doctor selected, actions taken
+  - [ ] AI summary: auto-generated conversation summary
+  - [ ] Call recording URL (for voice calls, with consent)
+  - [ ] Transcript URL (for voice calls)
+- [ ] **Reliable ingestion pipeline** (no data loss):
+  - [ ] BullMQ queue for async processing (webhook → queue → worker → DB)
+  - [ ] At-least-once delivery guarantee
+  - [ ] Idempotency: deduplicate using call_id / message_id
+  - [ ] Dead-letter queue for failed jobs with 3 retries + exponential backoff
+  - [ ] Monitoring: alert if dead-letter queue grows
+- [ ] **Embedding generation** from conversations:
+  - [ ] After conversation ends, generate embedding from transcript for RAG search
+  - [ ] Patient can later ask: "What did the receptionist tell me about my appointment?"
+- [ ] **Analytics from conversations**:
+  - [ ] Call duration, resolution rate, sentiment score
+  - [ ] Most common intents (booking, queue check, clinic info)
+  - [ ] Unresolved query tracking (questions AI couldn't answer → improve knowledge base)
+  - [ ] Language distribution across calls
 
 ### Queue & Token Management
 - [ ] Sequential token numbers per doctor per day
