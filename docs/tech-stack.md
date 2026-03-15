@@ -2104,10 +2104,206 @@ Admin creates/updates knowledge base entry
 
 | Component | Tool | Cost |
 |-----------|------|------|
-| Message Queue | **BullMQ** (on Redis) | Free (open source) |
-| Cache | **Upstash Redis** or self-hosted | $10/mo (Upstash) |
-| Conversation DB | **PostgreSQL** (Supabase) | Included |
-| Transcription | **Sarvam AI** (via Bolna) or **Deepgram** | Rs 30/hr (Sarvam) |
+| Message Queue | **BullMQ** (on self-hosted Redis) | Free |
+| Cache | **Self-hosted Redis** | Free |
+| Conversation DB | **Self-hosted PostgreSQL** | Free |
+| Live STT (during call) | **Deepgram** or **Sarvam AI** (via Bolna) | Rs 30/hr (Sarvam) / $0.0043/min (Deepgram) |
+| Post-call STT (storage) | **OpenAI Whisper** (self-hosted, FREE) | Free |
+| Embeddings | **OpenAI text-embedding-3-small** | $0.02/MTok |
+
+### Dual-STT Strategy: Live (Deepgram/Sarvam) + Storage (Whisper)
+
+```
+DURING THE CALL (real-time, <300ms):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Patient speaks → Deepgram/Sarvam (live streaming STT)
+  → Text in <300ms → LLM processes → AI responds
+
+  WHY NOT WHISPER HERE?
+  Whisper is batch-only. It needs the full audio file first.
+  You can't use it for live conversation — too slow (5-30 sec delay).
+
+AFTER THE CALL (batch, high accuracy):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Call ends → Bolna webhook sends recording URL
+  → BullMQ job: "transcribe_with_whisper"
+  → Worker downloads recording → runs Whisper → clean transcript
+  → Store transcript in PostgreSQL
+  → Generate embedding → store in pgvector
+  → Patient and doctor can read/search it forever
+
+  WHY WHISPER HERE?
+  ✅ FREE (self-hosted, open source)
+  ✅ More accurate than live STT (no time pressure)
+  ✅ Better at Hindi/Hinglish (whisper-large-v3)
+  ✅ Generates timestamps per word (useful for playback sync)
+```
+
+### OpenAI Whisper — Self-Hosted Setup
+
+```bash
+# Install Whisper on your VPS/server
+pip install openai-whisper
+
+# Or use faster-whisper (4x faster, same accuracy):
+pip install faster-whisper
+
+# Download model (do once):
+# tiny: 75MB, fast, lower accuracy
+# base: 140MB, good balance
+# small: 460MB, better accuracy
+# medium: 1.5GB, very good
+# large-v3: 3GB, best accuracy (recommended for Hindi)
+
+# Transcribe a call recording:
+whisper recording.mp3 --model large-v3 --language hi --output_format json
+
+# Output: recording.json
+# {
+#   "text": "Namaste, City Dental Clinic mein aapka swagat hai...",
+#   "segments": [
+#     {"start": 0.0, "end": 2.5, "text": "Namaste, City Dental Clinic mein"},
+#     {"start": 2.5, "end": 5.0, "text": "aapka swagat hai..."}
+#   ]
+# }
+```
+
+### Complete Transcription Pipeline
+
+```
+Call ends (Bolna webhook)
+        │
+        ▼
+POST /api/webhooks/bolna
+  Body: {
+    call_id: "xxx",
+    recording_url: "https://storage.bolna.ai/recordings/xxx.mp3",
+    live_transcript: "Namaste... daat mein dard hai...",  // from live STT
+    duration: 180,
+    patient_phone: "+91-98765-43210"
+  }
+        │
+        ▼
+1. Return 200 OK immediately
+2. Push to BullMQ: { job: "process_call", data: webhookPayload }
+        │
+        ▼ (BullMQ Worker — async)
+
+STEP 1: Download recording
+  → Download MP3 from recording_url → save to local disk / R2
+
+STEP 2: Whisper transcription (self-hosted)
+  → faster-whisper large-v3 → generates accurate transcript
+  → Output: full text + word-level timestamps + language detected
+
+STEP 3: Store in PostgreSQL
+  → conversations table: metadata, duration, sentiment, summary
+  → conversation_messages table: each turn (patient/AI) as separate row
+  → Store both live_transcript AND whisper_transcript
+    (Whisper is more accurate — use it as primary)
+
+STEP 4: Generate embedding
+  → Build text: "Patient called City Dental Clinic on 2026-03-15.
+     Symptoms: tooth pain, jaw swelling. Booked with Dr. Sharma,
+     Token #4, 11:30 AM. Fee Rs 500."
+  → OpenAI text-embedding-3-small → 1536-dim vector
+  → Store in embeddings table (source_type: 'conversation')
+
+STEP 5: AI Summary
+  → Send Whisper transcript to Claude Haiku (cheapest)
+  → "Summarize this clinic call in 2-3 lines"
+  → Store summary in conversations.ai_summary
+
+DONE. Conversation is now:
+  ✅ Stored as text (searchable)
+  ✅ Stored as embedding (RAG searchable)
+  ✅ Has AI summary (quick view for doctor)
+  ✅ Has recording URL (audio playback)
+  ✅ Visible in patient portal
+  ✅ Visible in doctor dashboard
+```
+
+### Where Patient & Doctor See Conversations
+
+```
+PATIENT PORTAL — "My Conversations" tab
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────┐
+│ My Conversations                                     │
+│                                                     │
+│ 📞 Voice Call — 15 Mar 2026, 10:15 AM               │
+│ Summary: Booked appointment with Dr. Sharma for      │
+│ tooth pain. Token #4, 11:30 AM. Fee Rs 500.         │
+│ [View Transcript] [Play Recording]                   │
+│                                                     │
+│ 💬 WhatsApp — 12 Mar 2026, 3:30 PM                  │
+│ Summary: Checked queue status. Position #2,          │
+│ estimated wait 10 minutes.                          │
+│ [View Chat]                                         │
+│                                                     │
+│ 📞 Voice Call — 1 Mar 2026, 9:00 AM                 │
+│ Summary: Called to ask about clinic timings.         │
+│ Told Mon-Sat 10AM-6PM.                              │
+│ [View Transcript] [Play Recording]                   │
+└─────────────────────────────────────────────────────┘
+
+Click "View Transcript":
+┌─────────────────────────────────────────────────────┐
+│ Call Transcript — 15 Mar 2026                        │
+│                                                     │
+│ 🤖 AI: Namaste! Welcome to City Dental Clinic.      │
+│        Main aapki kya madad kar sakta hoon?          │
+│                                                     │
+│ 👤 Patient: Mujhe daat mein bahut dard hai.          │
+│                                                     │
+│ 🤖 AI: Aapke symptoms ke hisaab se Dentist best     │
+│        rahega. Humare paas 2 dentist available hain: │
+│        1. Dr. Sharma — Rs 500, 3 waiting, Token #4  │
+│        2. Dr. Priya — Rs 300, no waiting, Token #1  │
+│        Kaunse doctor chahiye?                        │
+│                                                     │
+│ 👤 Patient: Dr. Sharma se book karo, 11:30 baje.    │
+│                                                     │
+│ 🤖 AI: Aapka appointment confirm ho gaya!            │
+│        Dr. Sharma, 11:30 AM, Token #4, Rs 500.      │
+│        WhatsApp pe confirmation aa jayega.            │
+│                                                     │
+│ Actions Taken:                                       │
+│ ✅ Appointment booked: APT-2026-3847                 │
+│ ✅ Token assigned: #4                                │
+│ ✅ WhatsApp confirmation sent                        │
+└─────────────────────────────────────────────────────┘
+
+
+DOCTOR DASHBOARD — Patient's conversation history
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Doctor opens patient "Rajesh Kumar" → "Conversations" tab
+Shows ALL conversations this patient had with the clinic:
+
+┌─────────────────────────────────────────────────────┐
+│ Patient: Rajesh Kumar — Conversations                │
+│                                                     │
+│ 📞 15 Mar 2026 — Booked for tooth pain              │
+│    AI Summary: Tooth pain + jaw swelling, 3 days.   │
+│    Booked Dr. Sharma 11:30AM. Token #4.             │
+│    Sentiment: Neutral. Language: Hindi.              │
+│    [Expand Transcript ▼]                            │
+│                                                     │
+│ 💬 12 Mar 2026 — Queue check via WhatsApp           │
+│    AI Summary: Checked queue. Position #2, 10 min.  │
+│    [View Chat ▼]                                    │
+│                                                     │
+│ 📞 1 Mar 2026 — Clinic timings inquiry              │
+│    AI Summary: Asked about timings. Told Mon-Sat    │
+│    10AM-6PM.                                        │
+│    [Expand Transcript ▼]                            │
+│                                                     │
+│ 🔍 Search: [What symptoms did patient report?    ]  │
+│    → AI searches conversation embeddings → answers  │
+└─────────────────────────────────────────────────────┘
+```
 | Voice AI | **Bolna.ai** | $0.02-0.04/min platform + usage |
 
 ### Why BullMQ (not Kafka, not RabbitMQ)
