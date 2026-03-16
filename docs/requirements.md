@@ -15,7 +15,6 @@
 | Clinic Owner      | Full clinic config, staff management, billing, analytics, AI settings              |
 | Doctor            | Manage patients, consultations, prescriptions, follow-ups, view analytics          |
 | Clinic Staff      | Register patients, schedule appointments, manage queue, billing                    |
-| Nurse             | Patient intake, vitals recording, queue management, prescription assistance        |
 | Receptionist      | Phone/WhatsApp handling, appointment booking, patient check-in                     |
 | Patient           | Book appointments, view records, track queue, pay bills, family management         |
 | Caregiver         | Manage family members' appointments and records (delegated patient access)         |
