@@ -60,4 +60,4 @@ async def health():
 
 
 # Mount Socket.IO on the FastAPI app
-socket_app = socketio.ASGIApp(sio, other_app=app)
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

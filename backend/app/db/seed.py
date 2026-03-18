@@ -12,7 +12,7 @@ from app.models import *  # noqa: F401, F403 — import all models to register t
 
 
 async def seed():
-    engine = create_async_engine(settings.DATABASE_URL, echo=True)
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
     # Create all tables
     async with engine.begin() as conn:
@@ -159,47 +159,295 @@ async def seed():
             ("stomach pain", "Gastroenterologist", 9), ("acidity", "Gastroenterologist", 8),
             ("bloating", "Gastroenterologist", 7), ("constipation", "Gastroenterologist", 7),
         ]
+        # Hindi / regional symptom keywords
+        hindi_symptom_data = [
+            # Dental — Hindi
+            ("dant dard", "Dentist", 10), ("dant me dard", "Dentist", 10),
+            ("daant dard", "Dentist", 10), ("masudo se khoon", "Dentist", 9),
+            ("masude me sujan", "Dentist", 9), ("thanda garam lagna", "Dentist", 8),
+            ("daant toot gaya", "Dentist", 10), ("daant hil raha hai", "Dentist", 9),
+            ("muh me chale", "Dentist", 7), ("muh se badbu", "Dentist", 7),
+            # General — Hindi
+            ("bukhar", "General Physician", 8), ("sardi", "General Physician", 7),
+            ("khansi", "General Physician", 8), ("sir dard", "General Physician", 7),
+            ("badan dard", "General Physician", 7), ("kamzori", "General Physician", 6),
+            ("ulti", "General Physician", 7), ("dast", "General Physician", 7),
+            ("pet dard", "General Physician", 8), ("gas ki problem", "General Physician", 7),
+            ("acidity", "General Physician", 7), ("sugar ki bimari", "General Physician", 8),
+            ("bp high", "General Physician", 8), ("bp low", "General Physician", 7),
+            ("thyroid", "General Physician", 8), ("sans ki taklif", "General Physician", 8),
+            ("chakkar aana", "General Physician", 7), ("neend nahi aati", "General Physician", 6),
+            ("bhook nahi lagti", "General Physician", 6), ("wajan badh raha hai", "General Physician", 6),
+            ("khoon ki kami", "General Physician", 7), ("peshab me jalan", "General Physician", 7),
+            # Skin — Hindi
+            ("chamdi pe dane", "Dermatologist", 9), ("khujli", "Dermatologist", 8),
+            ("baal jhadna", "Dermatologist", 9), ("daag dhabbe", "Dermatologist", 8),
+            ("chamdi pe lal nishan", "Dermatologist", 9),
+            # Bone — Hindi
+            ("ghutne me dard", "Orthopedic", 10), ("kamar dard", "Orthopedic", 9),
+            ("jodo me dard", "Orthopedic", 9), ("haddi toot gayi", "Orthopedic", 10),
+            ("kandhe me dard", "Orthopedic", 8), ("reedh ki haddi", "Orthopedic", 9),
+            # Eye — Hindi
+            ("aankh me dard", "Ophthalmologist", 10), ("dhundla dikhta hai", "Ophthalmologist", 10),
+            ("aankh lal hai", "Ophthalmologist", 9), ("aankh se paani", "Ophthalmologist", 8),
+            # ENT — Hindi
+            ("kaan me dard", "ENT Specialist", 10), ("gala kharab", "ENT Specialist", 8),
+            ("sunai nahi deta", "ENT Specialist", 10), ("naak se khoon", "ENT Specialist", 9),
+            # Child — Hindi
+            ("bacche ko bukhar", "Pediatrician", 10), ("bacche ko khansi", "Pediatrician", 9),
+            ("bacche ke daant", "Pediatrician", 8), ("bacche ka vaccination", "Pediatrician", 10),
+            # Heart — Hindi
+            ("seene me dard", "Cardiologist", 10), ("dil ki dhadkan tez", "Cardiologist", 10),
+            # Stomach — Hindi
+            ("pet me gas", "Gastroenterologist", 8), ("kabz", "Gastroenterologist", 7),
+            ("pet phulna", "Gastroenterologist", 7), ("khana hazam nahi hota", "Gastroenterologist", 7),
+        ]
+
+        all_symptom_data = symptom_data + hindi_symptom_data
         db.add_all([
             SymptomSpecializationMap(symptom_keyword=s, specialization=sp, priority=p)
-            for s, sp, p in symptom_data
+            for s, sp, p in all_symptom_data
         ])
-        print(f"Created {len(symptom_data)} symptom mappings")
+        print(f"Created {len(all_symptom_data)} symptom mappings ({len(symptom_data)} English + {len(hindi_symptom_data)} Hindi)")
 
-        # 7. Knowledge base
+        # 7. Knowledge base — comprehensive data for AI voice receptionist
         kb_entries = [
+            # ── Clinic Info ──────────────────────────────────────────
             KnowledgeBase(
-                clinic_id=clinic.id, category="clinic_info",
-                title="What are the clinic timings?",
-                content="City Dental & Multi-Specialty Clinic is open Monday to Friday from 10:00 AM to 6:00 PM, and Saturday from 10:00 AM to 2:00 PM. The clinic is closed on Sundays and public holidays.",
-                tags=["timings", "schedule", "hours"],
+                clinic_id=clinic.id, category="clinic_info", priority=10,
+                title="Welcome & Clinic Introduction",
+                content="Namaste! Welcome to City Dental & Multi-Specialty Clinic. We are a multi-specialty clinic located in Indiranagar, Bangalore. We have expert doctors for dental care, general medicine, skin care, eye care, ENT, orthopedic, and more. How can I help you today?",
+                tags=["welcome", "greeting", "introduction"],
+                language="en",
             ),
             KnowledgeBase(
-                clinic_id=clinic.id, category="clinic_info",
-                title="Is parking available?",
-                content="Yes, free parking is available for patients. There is a dedicated parking area behind the clinic building with space for 20 cars and 50 two-wheelers.",
+                clinic_id=clinic.id, category="clinic_info", priority=10,
+                title="Welcome & Clinic Introduction (Hindi)",
+                content="नमस्ते! सिटी डेंटल एंड मल्टी-स्पेशियलिटी क्लिनिक में आपका स्वागत है। हम इंदिरानगर, बैंगलोर में स्थित एक मल्टी-स्पेशियलिटी क्लिनिक हैं। हमारे पास डेंटल केयर, जनरल मेडिसिन, स्किन केयर, आँखों, ENT, हड्डियों और अन्य बीमारियों के विशेषज्ञ डॉक्टर हैं। मैं आपकी कैसे मदद कर सकता/सकती हूँ?",
+                tags=["welcome", "greeting", "introduction", "hindi"],
+                language="hi",
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="clinic_info", priority=9,
+                title="What are the clinic timings?",
+                content="City Dental & Multi-Specialty Clinic is open Monday to Friday from 10:00 AM to 6:00 PM, and Saturday from 10:00 AM to 2:00 PM. The clinic is closed on Sundays and public holidays. Morning OPD is 10:00 AM to 1:00 PM. Afternoon OPD is 2:00 PM to 6:00 PM. Lunch break is 1:00 PM to 2:00 PM.",
+                tags=["timings", "schedule", "hours", "opd"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="clinic_info", priority=9,
+                title="Clinic timings (Hindi)",
+                content="क्लिनिक सोमवार से शुक्रवार सुबह 10 बजे से शाम 6 बजे तक खुला है। शनिवार को सुबह 10 बजे से दोपहर 2 बजे तक। रविवार और सार्वजनिक छुट्टियों को बंद रहता है। सुबह OPD: 10 से 1 बजे। दोपहर OPD: 2 से 6 बजे। लंच ब्रेक: 1 से 2 बजे।",
+                tags=["timings", "schedule", "hours", "hindi"],
+                language="hi",
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="clinic_info", priority=8,
+                title="How to reach the clinic / Location & Directions",
+                content="City Dental & Multi-Specialty Clinic is located at 123, MG Road, Indiranagar, Bangalore - 560038. Nearest metro station: Indiranagar Metro (500m walk, Purple Line). By bus: BMTC buses 500A, 500D stop at Indiranagar BDA Complex (200m). By auto: Tell 'MG Road, Indiranagar' — any auto driver will know. Landmark: Opposite to SBI Indiranagar Branch.",
+                tags=["directions", "location", "address", "metro", "bus"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="clinic_info", priority=7,
+                title="Parking facility",
+                content="Yes, free parking is available for patients. There is a dedicated parking area behind the clinic building with space for 20 cars and 50 two-wheelers. Valet parking is also available during peak hours (10 AM - 12 PM).",
                 tags=["parking", "directions", "facilities"],
             ),
             KnowledgeBase(
-                clinic_id=clinic.id, category="faq",
-                title="Do you accept insurance?",
-                content="We accept major insurance providers including Star Health, ICICI Lombard, Max Bupa, and HDFC Ergo. Please bring your insurance card and a valid ID.",
-                tags=["insurance", "payment", "cashless"],
+                clinic_id=clinic.id, category="clinic_info", priority=7,
+                title="Languages we speak",
+                content="Our staff and doctors can communicate in English, Hindi, Kannada, Tamil, Telugu, and Marathi. Our AI phone receptionist supports Hindi and English. Please let us know your preferred language at the start of the call.",
+                tags=["language", "hindi", "kannada", "english", "marathi", "tamil", "telugu"],
             ),
             KnowledgeBase(
-                clinic_id=clinic.id, category="clinic_info",
-                title="How to reach the clinic?",
-                content="City Dental & Multi-Specialty Clinic is located at 123, MG Road, Indiranagar, Bangalore - 560038. Nearest metro station: Indiranagar (500m walk).",
-                tags=["directions", "location", "address"],
+                clinic_id=clinic.id, category="clinic_info", priority=6,
+                title="Koramangala Branch",
+                content="We also have a branch at 456, 80 Feet Road, Koramangala, Bangalore - 560034. Phone: +918012345679. Timings: Monday-Friday 9:00 AM to 5:00 PM, Saturday 9:00 AM to 1:00 PM. Closed Sundays.",
+                tags=["branch", "koramangala", "location"],
+            ),
+
+            # ── Doctor Profiles ──────────────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="doctor", priority=10,
+                title="Dr. Rajesh Sharma — Dentist (Clinic Owner)",
+                content="Dr. Rajesh Sharma is our senior dentist and clinic owner with 12 years of experience. Qualification: BDS, MDS Orthodontics from Rajiv Gandhi University. Specialization: Dental care, root canal, orthodontics (braces), dental implants, cosmetic dentistry, teeth whitening. Consultation fee: ₹500. Available: Monday to Friday 10 AM - 6 PM, Saturday 10 AM - 2 PM. Rating: 4.8/5 from 156 patient reviews. He has treated over 1200 patients.",
+                tags=["dentist", "orthodontics", "root canal", "braces", "implants", "dr rajesh"],
+                doctor_id=doctors[0].id,
             ),
             KnowledgeBase(
-                clinic_id=clinic.id, category="faq",
-                title="How do I book an appointment?",
-                content="You can book an appointment by: 1) Calling our AI receptionist at +918012345678, 2) Using the CliniqAI patient portal, 3) WhatsApp to +918012345678, 4) Walk in.",
-                tags=["booking", "appointment", "how-to"],
+                clinic_id=clinic.id, category="doctor", priority=9,
+                title="Dr. Priya Mehta — Dentist",
+                content="Dr. Priya Mehta is a dentist with 5 years of experience. Qualification: BDS from Manipal University. Specialization: General dentistry, dental cleaning, fillings, tooth extraction, pediatric dentistry (children's dental care). Consultation fee: ₹300. Available: Monday to Friday 10 AM - 6 PM. Rating: 4.5/5 from 89 patient reviews. She has treated over 650 patients. Best for: Children's dental care and routine dental checkups.",
+                tags=["dentist", "cleaning", "filling", "extraction", "children", "dr priya"],
+                doctor_id=doctors[1].id,
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="doctor", priority=9,
+                title="Dr. Amit Kumar — General Physician / Internal Medicine",
+                content="Dr. Amit Kumar is a general physician with 8 years of experience. Qualification: MBBS, MD Internal Medicine from AIIMS Delhi. Specialization: Fever, cold, cough, headache, body pain, diabetes, blood pressure, thyroid, infections, viral fever, stomach problems. Consultation fee: ₹400. Available: Monday to Friday 10 AM - 6 PM, Saturday 10 AM - 2 PM. Rating: 4.6/5 from 112 reviews. He has treated over 890 patients. Best for: General health issues, chronic disease management.",
+                tags=["general physician", "fever", "cold", "cough", "diabetes", "bp", "dr amit"],
+                doctor_id=doctors[2].id,
+            ),
+
+            # ── Services & Procedures ─────────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="services", priority=8,
+                title="Dental Services & Procedures",
+                content="Our dental services include: 1) Dental Consultation - ₹500 (Dr. Rajesh) / ₹300 (Dr. Priya), 2) Dental Cleaning/Scaling - ₹1,500, 3) Dental Filling - ₹800 to ₹2,000, 4) Root Canal Treatment (RCT) - ₹5,000 to ₹8,000, 5) Tooth Extraction - ₹500 to ₹2,000, 6) Dental X-Ray - ₹300, 7) Teeth Whitening - ₹3,000 to ₹5,000, 8) Braces/Orthodontics - ₹30,000 to ₹60,000, 9) Dental Implants - ₹25,000 to ₹50,000, 10) Crown/Cap - ₹3,000 to ₹8,000.",
+                tags=["dental", "services", "rct", "root canal", "cleaning", "filling", "braces", "implant", "whitening", "fees"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="services", priority=8,
+                title="General Medicine Services",
+                content="Our general medicine services include: 1) General Consultation - ₹400, 2) Blood Test (CBC, Sugar, Thyroid) - ₹600 to ₹1,500, 3) Urine Test - ₹200, 4) ECG - ₹500, 5) Blood Pressure Check - Free with consultation, 6) Diabetes Screening - ₹800, 7) Health Checkup Package (Basic) - ₹2,500, 8) Health Checkup Package (Comprehensive) - ₹5,000, 9) Vaccination - ₹300 to ₹2,000 depending on vaccine.",
+                tags=["general medicine", "blood test", "ecg", "health checkup", "vaccination", "fees"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="services", priority=7,
+                title="Lab & Diagnostic Services",
+                content="We have an in-house lab for basic tests. Available tests: CBC (Complete Blood Count) - ₹300, Blood Sugar (Fasting/PP) - ₹200, Lipid Profile - ₹500, Thyroid Panel - ₹600, Liver Function Test - ₹500, Kidney Function Test - ₹500, Urine Routine - ₹200, HbA1c - ₹500, Dental X-Ray - ₹300, OPG (Full Mouth X-Ray) - ₹800. Reports available same day for most tests. For advanced tests (MRI, CT Scan), we refer to partner diagnostic centers.",
+                tags=["lab", "test", "blood test", "x-ray", "diagnostic", "report", "fees"],
+            ),
+
+            # ── Symptom → Doctor Routing (for AI) ─────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="symptom_routing", priority=10,
+                title="Dental Symptoms → Which Doctor?",
+                content="If you have any of these problems, you should see our Dentist (Dr. Rajesh Sharma or Dr. Priya Mehta): tooth pain, toothache, dant dard, cavity, gum pain, gum bleeding, masudo se khoon, jaw pain, tooth sensitivity, thanda garam lagna, broken tooth, loose tooth, bad breath, mouth ulcer, teeth alignment (braces needed). For children's dental issues, Dr. Priya Mehta is recommended.",
+                tags=["symptom", "dental", "tooth", "routing", "dant", "dard"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="symptom_routing", priority=10,
+                title="General Health Symptoms → Which Doctor?",
+                content="If you have any of these problems, you should see Dr. Amit Kumar (General Physician): fever (bukhar), cold (sardi), cough (khansi), headache (sir dard), body pain (badan dard), weakness (kamzori), vomiting (ulti), diarrhea (dast), stomach pain (pet dard), acidity, gas, blood pressure issue, diabetes (sugar ki bimari), thyroid, skin infection, allergy, breathing problem (sans ki taklif). For emergency: chest pain, severe breathlessness, high fever above 104°F — please go to hospital emergency.",
+                tags=["symptom", "fever", "cold", "cough", "general", "routing", "bukhar", "sardi"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="symptom_routing", priority=9,
+                title="Symptom Routing — Hindi Guide",
+                content="दांत दर्द, कैविटी, मसूड़ों से खून → Dr. Rajesh या Dr. Priya (Dentist)। बुखार, सर्दी, खांसी, सिर दर्द, पेट दर्द, कमजोरी, उल्टी, दस्त, शुगर, BP → Dr. Amit (General Physician)। बच्चों के दांत → Dr. Priya। अगर आपको नहीं पता कौन सा डॉक्टर सही है, तो अपनी तकलीफ़ बताइए, हम सही डॉक्टर सुझाव देंगे।",
+                tags=["symptom", "routing", "hindi"],
+                language="hi",
+            ),
+
+            # ── Appointment & Queue Info ──────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="appointment", priority=9,
+                title="How to book an appointment?",
+                content="You can book an appointment in 4 ways: 1) Call our AI receptionist at +918012345678 — just tell your problem, it will suggest the right doctor and book for you. 2) WhatsApp 'Book' to +918012345678. 3) Use the CliniqAI patient portal at app.cliniqai.com. 4) Walk in directly — we accept walk-ins but appointment patients get priority. Booking is free. You can also ask me to book right now!",
+                tags=["booking", "appointment", "how-to", "walk-in"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="appointment", priority=8,
+                title="How does the queue / token system work?",
+                content="When you book an appointment or arrive at the clinic, you get a token number. You can check your queue position by: 1) Calling this number and asking 'What is my queue status?', 2) Checking the CliniqAI patient portal, 3) Looking at the TV display in the waiting area. Average wait time is 15 minutes per patient. If your token is 5 and currently token 2 is being seen, your estimated wait is about 45 minutes. We will send you a WhatsApp notification when you are next in line.",
+                tags=["queue", "token", "wait time", "position"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="appointment", priority=8,
+                title="Token System Explained (Hindi)",
+                content="जब आप अपॉइंटमेंट बुक करते हैं या क्लिनिक आते हैं, तो आपको एक टोकन नंबर मिलता है। आप अपनी क्यू पोजिशन जानने के लिए: 1) इस नंबर पर कॉल करें और पूछें 'मेरा क्यू स्टेटस क्या है?', 2) CliniqAI पेशेंट पोर्टल चेक करें, 3) वेटिंग एरिया में TV डिस्प्ले देखें। हर मरीज का औसत समय 15 मिनट है। जब आपकी बारी आएगी तो हम WhatsApp पर सूचना भेजेंगे।",
+                tags=["queue", "token", "hindi"],
+                language="hi",
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="appointment", priority=7,
+                title="Can I cancel or reschedule my appointment?",
+                content="Yes, you can cancel or reschedule your appointment by: 1) Calling this number and saying 'Cancel my appointment' or 'Reschedule my appointment', 2) Using the patient portal, 3) WhatsApp 'Cancel' to +918012345678. Please cancel at least 2 hours before your appointment time. No cancellation fee is charged.",
+                tags=["cancel", "reschedule", "appointment"],
+            ),
+
+            # ── Payment & Billing ─────────────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="payment", priority=8,
+                title="Payment methods accepted",
+                content="We accept the following payment methods: 1) Cash, 2) UPI (Google Pay, PhonePe, Paytm, BHIM — scan QR at reception), 3) Debit/Credit Card (Visa, MasterCard, RuPay), 4) Net Banking, 5) Online payment via Razorpay link (sent to your WhatsApp/SMS). Payment is due at the time of consultation. For procedures above ₹5,000, EMI options are available.",
+                tags=["payment", "upi", "card", "cash", "razorpay", "emi"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="payment", priority=7,
+                title="Fee structure overview",
+                content="Consultation fees: Dr. Rajesh Sharma (Dentist, Senior) - ₹500, Dr. Priya Mehta (Dentist) - ₹300, Dr. Amit Kumar (General Physician) - ₹400. Follow-up within 7 days is free. Procedure costs are additional. Detailed cost will be explained before any procedure. We provide printed/digital receipts for all payments.",
+                tags=["fees", "cost", "consultation", "price", "charges"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="payment", priority=7,
+                title="Insurance accepted",
+                content="We accept major health insurance providers for cashless and reimbursement claims: Star Health, ICICI Lombard, Max Bupa, HDFC Ergo, Bajaj Allianz, United India, New India Assurance, and Religare Health. Please bring your insurance card, a valid photo ID, and a pre-authorization letter if required. Our staff will help with the claim process.",
+                tags=["insurance", "cashless", "claim", "reimbursement"],
+            ),
+
+            # ── FAQ ───────────────────────────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=6,
+                title="Is this an emergency? When to go to hospital instead",
+                content="Our clinic handles non-emergency cases. For the following emergencies, please go directly to the nearest hospital ER: severe chest pain, difficulty breathing, unconsciousness, heavy uncontrolled bleeding, high fever above 104°F in children, severe allergic reaction, accident/trauma with fractures. Nearest hospital: Manipal Hospital Indiranagar (1.5 km). Ambulance: call 108.",
+                tags=["emergency", "hospital", "ambulance", "108"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=6,
+                title="Do I need to bring any documents?",
+                content="For your first visit, please bring: 1) A valid photo ID (Aadhaar, PAN, Passport), 2) Previous medical records/prescriptions if any, 3) Insurance card (if using insurance), 4) List of current medications you are taking. For follow-up visits, just bring your previous prescription from our clinic.",
+                tags=["documents", "first visit", "id", "records"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=6,
+                title="Can I get my prescription online?",
+                content="Yes! After your consultation, your doctor will create a digital prescription. It will be sent to your WhatsApp number and is also available in your patient portal at app.cliniqai.com. You can show this digital prescription at any pharmacy to buy medicines.",
+                tags=["prescription", "digital", "online", "whatsapp"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=5,
+                title="After-hours / Emergency contact",
+                content="Our clinic is closed on Sundays and after 6 PM on weekdays. For after-hours dental emergency, you can WhatsApp Dr. Rajesh at +919876543210. For medical emergencies, call 108 (ambulance) or visit Manipal Hospital Indiranagar. For non-urgent queries, leave a message and we will call you back the next working day.",
+                tags=["after hours", "emergency", "closed", "sunday", "night"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=5,
+                title="COVID-19 Safety Measures",
+                content="We follow all COVID-19 safety protocols: 1) Temperature screening at entry, 2) Hand sanitizer stations at reception and all rooms, 3) Masks provided if needed, 4) Instruments are autoclave-sterilized, 5) Waiting area seating is socially distanced, 6) Rooms are UV-sanitized between patients. If you have COVID symptoms (fever + cough + breathing difficulty), please inform us before visiting.",
+                tags=["covid", "safety", "mask", "sanitizer", "protocol"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="faq", priority=5,
+                title="Patient feedback and complaints",
+                content="We value your feedback! After your visit, you will receive a feedback form via WhatsApp. You can also: 1) Share feedback in the patient portal, 2) Email info@cityclinic.in, 3) Speak to our receptionist. If you have any complaints, please contact our clinic owner Dr. Rajesh Sharma directly at +919876543210.",
+                tags=["feedback", "complaint", "review", "rating"],
+            ),
+
+            # ── AI Voice Call Flow Guide ──────────────────────────────
+            KnowledgeBase(
+                clinic_id=clinic.id, category="ai_guide", priority=10,
+                title="AI Call Flow — What the AI receptionist can do",
+                content="When a patient calls, the AI receptionist can: 1) Greet in Hindi or English (ask patient's language preference), 2) Ask what problem/bimari they have, 3) Suggest the right doctor based on symptoms, 4) Tell doctor availability, fees, and queue length, 5) Book appointment and give token number with estimated time, 6) Check existing queue status — tell position and wait time, 7) Cancel or reschedule appointment, 8) Answer clinic info questions (timings, location, parking, services, fees), 9) Register new patient (name, phone, age/DOB, gender), 10) Transfer to human receptionist if needed.",
+                tags=["ai", "call flow", "voice", "receptionist", "guide"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="ai_guide", priority=9,
+                title="AI Response — When patient asks about wait time",
+                content="When a patient asks 'kitna time lagega' or 'how long is the wait': Check the queue for that doctor. If queue has 0 patients: 'Abhi koi queue nahi hai, aap turant doctor se mil sakte hain.' If 1-3 patients: 'Aapke aage [X] patient hain, lagbhag [X*15] minute ka wait hoga.' If 4+ patients: 'Abhi [X] patient queue mein hain, lagbhag [X*15] minute lagenge. Kya aap baad mein aana chahenge ya abhi appointment book karein?' Always give estimated time: each patient takes approximately 15 minutes.",
+                tags=["wait time", "queue", "kitna time", "ai response"],
+            ),
+            KnowledgeBase(
+                clinic_id=clinic.id, category="ai_guide", priority=9,
+                title="AI Response — When patient describes symptoms",
+                content="When a patient describes their problem: 1) Listen to symptoms, 2) Map to specialization using symptom_specialization_map, 3) Find available doctors with that specialization, 4) Respond: 'Aapki taklif ke liye [Doctor Name] ([Specialization]) best rahenge. Unki consultation fee ₹[fee] hai. Abhi unke paas [X] patient queue mein hain. Kya aap appointment book karna chahenge?' If no matching doctor: 'Is taklif ke liye humare clinic mein specialist available nahi hai. Main aapko [nearest hospital/specialist] refer kar sakta hoon.' Always confirm before booking.",
+                tags=["symptoms", "routing", "ai response", "bimari"],
             ),
         ]
         db.add_all(kb_entries)
+        await db.flush()
         print(f"Created {len(kb_entries)} knowledge base entries")
+
+        # Generate embeddings for knowledge base (if OpenAI key available)
+        try:
+            from app.services.embedding_service import embed_knowledge_base_entry
+            embedded_count = 0
+            for entry in kb_entries:
+                if await embed_knowledge_base_entry(db, entry):
+                    embedded_count += 1
+            print(f"Embedded {embedded_count}/{len(kb_entries)} KB entries (requires OPENAI_API_KEY)")
+        except Exception as e:
+            print(f"KB embedding skipped: {e}")
 
         # 8. Sample appointments for today
         today = date.today()
@@ -546,7 +794,7 @@ async def seed():
         print(f"  Clinic Branches:        1")
         print(f"  Doctors:                {len(doctors)}")
         print(f"  Patients:               {len(patients)}")
-        print(f"  Symptom Mappings:       {len(symptom_data)}")
+        print(f"  Symptom Mappings:       {len(all_symptom_data)} ({len(symptom_data)} EN + {len(hindi_symptom_data)} HI)")
         print(f"  Knowledge Base:         {len(kb_entries)}")
         print(f"  Appointments:           {len(appts)}")
         print(f"  Queue Entries:          {len(queue)}")

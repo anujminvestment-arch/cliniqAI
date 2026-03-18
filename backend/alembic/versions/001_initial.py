@@ -16,8 +16,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Enable pgvector extension
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Enable pgvector extension (skip if not installed on this PG version)
+    try:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    except Exception:
+        print("WARNING: pgvector extension not available. Embedding search will use keyword fallback.")
 
     # ── users ──────────────────────────────────────────────────────────
     op.create_table(
@@ -288,8 +291,11 @@ def upgrade() -> None:
     op.create_index("idx_embeddings_patient", "embeddings", ["clinic_id", "patient_id"])
     op.create_index("idx_embeddings_source", "embeddings", ["source_type", "source_id"])
 
-    # Convert embedding column to vector(1536)
-    op.execute("ALTER TABLE embeddings ALTER COLUMN embedding TYPE vector(1536) USING embedding::vector(1536)")
+    # Convert embedding column to vector(1536) if pgvector is available
+    try:
+        op.execute("ALTER TABLE embeddings ALTER COLUMN embedding TYPE vector(1536) USING embedding::vector(1536)")
+    except Exception:
+        print("WARNING: Could not convert embedding column to vector type. Embeddings will be stored as text.")
 
     # ── knowledge_base ─────────────────────────────────────────────────
     op.create_table(

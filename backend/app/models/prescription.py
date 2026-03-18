@@ -25,7 +25,7 @@ class Prescription(Base):
     diagnosis: Mapped[str | None] = mapped_column(Text)
     medications: Mapped[list] = mapped_column(JSONB, default=list)
     instructions: Mapped[str | None] = mapped_column(Text)
-    follow_up_date: Mapped[date | None] = mapped_column(Date)
+    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_signed: Mapped[bool] = mapped_column(Boolean, default=False)
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

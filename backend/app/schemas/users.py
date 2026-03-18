@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
+from datetime import date as DateTypetime
 
 
 class UserProfile(BaseModel):

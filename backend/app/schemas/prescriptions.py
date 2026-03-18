@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date as DateType
 
 
 class MedicationSchema(BaseModel):
@@ -13,15 +13,15 @@ class MedicationSchema(BaseModel):
 class PrescriptionCreate(BaseModel):
     patient_id: str
     appointment_id: str | None = None
-    date: date
+    date: DateType
     diagnosis: str | None = None
     medications: list[MedicationSchema]
     instructions: str | None = None
-    follow_up_date: date | None = None
+    follow_up_date: DateType | None = None
 
 
 class PrescriptionUpdate(BaseModel):
     diagnosis: str | None = None
     medications: list[MedicationSchema] | None = None
     instructions: str | None = None
-    follow_up_date: date | None = None
+    follow_up_date: DateType | None = None

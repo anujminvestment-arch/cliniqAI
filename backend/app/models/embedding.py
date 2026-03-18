@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Text, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from pgvector.sqlalchemy import Vector
+# pgvector extension not available on this PG version (17.0) — use Text fallback
+# Embedding search will use keyword matching instead of vector similarity
+_VECTOR_TYPE = Text
 
 from app.db.base import Base
 
@@ -23,6 +25,6 @@ class Embedding(Base):
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     content_text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding = mapped_column(Vector(1536), nullable=False)
-    metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
+    embedding = mapped_column(_VECTOR_TYPE, nullable=True)
+    extra_data: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

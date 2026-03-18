@@ -32,7 +32,7 @@ async def send_notification(
         content=content,
         status="pending",
         event=event,
-        metadata=metadata or {},
+        extra_data=metadata or {},
     )
     db.add(notification)
 
@@ -48,7 +48,7 @@ async def send_notification(
         except Exception as e:
             logger.error(f"WhatsApp send failed: {e}")
             notification.status = "failed"
-            notification.metadata = {**(metadata or {}), "error": str(e)}
+            notification.extra_data = {**(metadata or {}), "error": str(e)}
 
     # SMS fallback if WhatsApp failed
     if notification.status == "failed" and recipient_phone:

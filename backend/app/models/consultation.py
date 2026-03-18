@@ -27,6 +27,6 @@ class ConsultationNote(Base):
     assessment: Mapped[str | None] = mapped_column(Text)
     plan: Mapped[str | None] = mapped_column(Text)
     vitals: Mapped[dict] = mapped_column(JSONB, default=dict)
-    follow_up_date: Mapped[date | None] = mapped_column(Date)
+    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -1,9 +1,12 @@
 import random
+import logging
 from datetime import date, datetime, time, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.core.deps import verify_voice_api_key
@@ -300,22 +303,34 @@ async def clinic_info(body: ClinicInfoRequest, db: AsyncSession = Depends(get_db
 
     answer = None
     if body.query:
-        # Search knowledge base for matching answer
-        result = await db.execute(
-            select(KnowledgeBase).where(
-                or_(KnowledgeBase.clinic_id == body.clinic_id, KnowledgeBase.clinic_id.is_(None)),
-                KnowledgeBase.is_published == True,
-            )
-        )
-        kb_entries = result.scalars().all()
+        # Try semantic search via embeddings first
+        try:
+            from app.services.embedding_service import search_knowledge_base
+            results = await search_knowledge_base(db, str(body.clinic_id), body.query, limit=3)
+            if results:
+                # Combine top results
+                answer = results[0]["content_text"]
+                # If multiple good matches, combine them
+                if len(results) > 1 and results[1].get("similarity", 0) > 0.5:
+                    answer += "\n\n" + results[1]["content_text"]
+        except Exception:
+            pass
 
-        # Simple keyword match (embedding search can be added later)
-        query_lower = body.query.lower()
-        for entry in kb_entries:
-            if any(word in entry.title.lower() or word in entry.content.lower()
-                   for word in query_lower.split()):
-                answer = entry.content
-                break
+        # Fallback to keyword search if embedding search returns nothing
+        if not answer:
+            result = await db.execute(
+                select(KnowledgeBase).where(
+                    or_(KnowledgeBase.clinic_id == body.clinic_id, KnowledgeBase.clinic_id.is_(None)),
+                    KnowledgeBase.is_published == True,
+                )
+            )
+            kb_entries = result.scalars().all()
+            query_lower = body.query.lower()
+            for entry in kb_entries:
+                if any(word in entry.title.lower() or word in entry.content.lower()
+                       for word in query_lower.split()):
+                    answer = entry.content
+                    break
 
     return ClinicInfoResponse(
         name=clinic.name,
@@ -448,3 +463,149 @@ async def simulate(body: SimulateRequest, db: AsyncSession = Depends(get_db)):
     request_body = schema(**params)
 
     return await handler(body=request_body, db=db)
+
+
+# ── STT/TTS Provider Routing Endpoints ───────────────────────────
+
+@router.post("/transcribe")
+async def transcribe_audio(
+    audio: UploadFile = File(...),
+    caller_phone: str = Form(default=""),
+    language: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Transcribe audio — auto-routes to Sarvam (Indian) or Whisper (global).
+
+    - Indian callers (+91): Sarvam Saaras v3 (best Hindi/regional accuracy)
+    - Global callers: OpenAI Whisper (57 languages)
+
+    Upload audio file (mp3, wav, m4a, webm, ogg, flac).
+    """
+    from app.services.stt_router import transcribe
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    result = await transcribe(
+        audio_bytes=audio_bytes,
+        caller_phone=caller_phone or None,
+        language=language or None,
+        filename=audio.filename or "audio.wav",
+    )
+    return result
+
+
+@router.post("/translate-audio")
+async def translate_audio_to_english(
+    audio: UploadFile = File(...),
+    caller_phone: str = Form(default=""),
+    language: str = Form(default=""),
+):
+    """Transcribe + translate audio to English.
+
+    Works for any language — Hindi, Tamil, Spanish, French, etc.
+    """
+    from app.services.stt_router import translate_to_english
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    return await translate_to_english(
+        audio_bytes=audio_bytes,
+        caller_phone=caller_phone or None,
+        language=language or None,
+        filename=audio.filename or "audio.wav",
+    )
+
+
+@router.post("/tts")
+async def text_to_speech_endpoint(
+    text: str = Form(...),
+    language: str = Form(default="en-IN"),
+    caller_phone: str = Form(default=""),
+    speaker: str = Form(default=""),
+):
+    """Convert text to speech — auto-routes to Sarvam (Indian) or OpenAI (global).
+
+    Indian languages: Sarvam Bulbul v3 (30+ Indian voices)
+    Global: OpenAI TTS (alloy, echo, fable, onyx, nova, shimmer)
+    """
+    from app.services.stt_router import text_to_speech
+    from fastapi.responses import Response
+
+    result = await text_to_speech(
+        text=text,
+        language=language,
+        caller_phone=caller_phone or None,
+        speaker=speaker or None,
+    )
+
+    if result["provider"] == "whisper" and isinstance(result["audio"], bytes):
+        return Response(content=result["audio"], media_type="audio/mpeg")
+
+    # Sarvam returns JSON with base64 audio
+    return result
+
+
+@router.post("/detect-language")
+async def detect_language_endpoint(
+    text: str = Form(default=""),
+    caller_phone: str = Form(default=""),
+):
+    """Detect language from text or phone number.
+
+    Uses Sarvam Language Detection API for Indian languages.
+    Falls back to phone-number inference.
+    """
+    from app.services.stt_router import detect_language
+
+    return await detect_language(
+        text=text or None,
+        caller_phone=caller_phone or None,
+    )
+
+
+@router.get("/providers")
+async def list_providers():
+    """Show which STT/TTS providers are configured and available."""
+    from app.services.sarvam_client import sarvam_client, SARVAM_LANGUAGES
+    from app.services.whisper_client import whisper_client, WHISPER_LANGUAGES
+
+    return {
+        "sarvam": {
+            "available": sarvam_client.available,
+            "use_for": "Indian callers (+91)",
+            "stt_model": "saaras:v3",
+            "tts_model": "bulbul:v3",
+            "languages": list(SARVAM_LANGUAGES.keys()),
+            "features": [
+                "STT (batch + streaming)",
+                "TTS (30+ voices)",
+                "Translation (22 Indian languages)",
+                "Transliteration",
+                "Language Detection",
+                "Samvaad Voice Agent",
+            ],
+        },
+        "whisper": {
+            "available": whisper_client.available,
+            "use_for": "Global callers (non-Indian)",
+            "stt_models": ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe-diarize"],
+            "tts_models": ["tts-1", "tts-1-hd"],
+            "languages": len(WHISPER_LANGUAGES),
+            "features": [
+                "STT (57 languages)",
+                "Translation to English",
+                "Speaker Diarization",
+                "TTS (6 voices)",
+                "Timestamps (word + segment)",
+            ],
+        },
+        "routing": {
+            "indian_callers": "Sarvam AI (best Indian language accuracy)",
+            "global_callers": "OpenAI Whisper (57 languages)",
+            "fallback": "If primary provider fails, falls back to the other",
+        },
+    }

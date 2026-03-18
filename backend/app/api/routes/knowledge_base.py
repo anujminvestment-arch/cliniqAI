@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.knowledge_base import KnowledgeBase
 from app.core.deps import get_current_user, CurrentUser, require_roles
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge-base", tags=["knowledge-base"])
 
@@ -64,6 +68,15 @@ async def create_entry(
     db.add(entry)
     await db.commit()
     await db.refresh(entry)
+
+    # Auto-embed if OpenAI key is configured
+    try:
+        from app.services.embedding_service import embed_knowledge_base_entry
+        await embed_knowledge_base_entry(db, entry)
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Auto-embed failed: {e}")
+
     return {"id": str(entry.id), "title": entry.title}
 
 
@@ -84,7 +97,39 @@ async def update_entry(
         if field in body:
             setattr(entry, field, body[field])
     await db.commit()
+
+    # Re-embed after update
+    try:
+        from app.services.embedding_service import embed_knowledge_base_entry
+        await embed_knowledge_base_entry(db, entry)
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Re-embed failed: {e}")
+
     return {"id": str(entry.id), "title": entry.title}
+
+
+@router.post("/embed-all")
+async def embed_all(
+    user: CurrentUser = Depends(require_roles("clinic_owner")),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.embedding_service import embed_all_kb_entries
+    result = await embed_all_kb_entries(db, str(user.clinic_id))
+    await db.commit()
+    return result
+
+
+@router.get("/search")
+async def semantic_search(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(5, le=20),
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.embedding_service import search_knowledge_base
+    results = await search_knowledge_base(db, str(user.clinic_id), q, limit=limit)
+    return {"results": results, "query": q}
 
 
 @router.delete("/{entry_id}")

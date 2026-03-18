@@ -22,7 +22,7 @@ class Invoice(Base):
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"))
     invoice_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    due_date: Mapped[date | None] = mapped_column(Date)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     items: Mapped[list] = mapped_column(JSONB, default=list)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))
     tax: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"))

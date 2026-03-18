@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import date as DateType
 from decimal import Decimal
 
 
@@ -13,8 +13,8 @@ class InvoiceItemSchema(BaseModel):
 class InvoiceCreate(BaseModel):
     patient_id: str
     appointment_id: str | None = None
-    date: date
-    due_date: date | None = None
+    date: DateType
+    due_date: DateType | None = None
     items: list[InvoiceItemSchema]
     tax: Decimal = Decimal("0")
     discount: Decimal = Decimal("0")

@@ -31,7 +31,7 @@ class Appointment(Base):
     symptoms_summary: Mapped[str | None] = mapped_column(Text)
     consultation_notes: Mapped[str | None] = mapped_column(Text)
     diagnosis: Mapped[str | None] = mapped_column(Text)
-    follow_up_date: Mapped[date | None] = mapped_column(Date)
+    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     follow_up_notes: Mapped[str | None] = mapped_column(Text)
     cancellation_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -1,5 +1,10 @@
+import hashlib
 import logging
+from datetime import datetime, timezone
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.models.embedding import Embedding
 
@@ -44,6 +49,10 @@ async def store_embedding(
     if vector is None:
         return None
 
+    # Convert vector to JSON string if pgvector extension is not available (Text column fallback)
+    import json as _json
+    stored_vector = _json.dumps(vector) if isinstance(vector, list) else vector
+
     embedding = Embedding(
         clinic_id=clinic_id,
         patient_id=patient_id,
@@ -51,8 +60,8 @@ async def store_embedding(
         source_type=source_type,
         source_id=source_id,
         content_text=content_text,
-        embedding=vector,
-        metadata=metadata or {},
+        embedding=stored_vector,
+        extra_data=metadata or {},
     )
     db.add(embedding)
     await db.flush()
@@ -100,3 +109,69 @@ async def search_similar(
         }
         for row in rows
     ]
+
+
+async def embed_knowledge_base_entry(db: AsyncSession, entry) -> bool:
+    """Generate and store embedding for a knowledge base entry."""
+    content_hash = hashlib.sha256(f"{entry.title} {entry.content}".encode()).hexdigest()
+
+    # Skip if already embedded with same content
+    if entry.content_hash == content_hash and entry.last_embedded_at:
+        return False
+
+    # Create combined text for better semantic matching
+    combined = f"Category: {entry.category}. Title: {entry.title}. {entry.content}"
+    if entry.tags:
+        combined += f" Tags: {', '.join(entry.tags)}"
+
+    result = await store_embedding(
+        db,
+        clinic_id=str(entry.clinic_id),
+        source_type="knowledge_base",
+        source_id=str(entry.id),
+        content_text=combined,
+        doctor_id=str(entry.doctor_id) if entry.doctor_id else None,
+        metadata={"category": entry.category, "language": entry.language, "title": entry.title},
+    )
+
+    if result:
+        entry.content_hash = content_hash
+        entry.last_embedded_at = datetime.now(timezone.utc)
+        return True
+    return False
+
+
+async def embed_all_kb_entries(db: AsyncSession, clinic_id: str) -> dict:
+    """Embed all knowledge base entries for a clinic."""
+    from app.models.knowledge_base import KnowledgeBase
+
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.clinic_id == clinic_id,
+            KnowledgeBase.is_published == True,
+        )
+    )
+    entries = result.scalars().all()
+    embedded = 0
+    skipped = 0
+    for entry in entries:
+        if await embed_knowledge_base_entry(db, entry):
+            embedded += 1
+        else:
+            skipped += 1
+    await db.flush()
+    return {"embedded": embedded, "skipped": skipped, "total": len(entries)}
+
+
+async def search_knowledge_base(
+    db: AsyncSession,
+    clinic_id: str,
+    query: str,
+    limit: int = 5,
+    min_similarity: float = 0.3,
+) -> list[dict]:
+    """Semantic search in knowledge base using embeddings."""
+    # First try embedding search
+    results = await search_similar(db, clinic_id, query, source_type="knowledge_base", limit=limit)
+    # Filter by minimum similarity
+    return [r for r in results if r.get("similarity", 0) >= min_similarity]
