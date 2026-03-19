@@ -89,7 +89,12 @@ export default function BookAppointmentPage() {
       try {
         const dateStr = selectedDate!.toISOString().split("T")[0];
         const res: any = await appointments.getSlots(selectedDoctor.id, dateStr);
-        setSlotsForDate(res.slots || res || []);
+        const rawSlots = res.slots || res || [];
+        // Slots come as {time, available} objects — extract available time strings
+        const availableSlots = rawSlots
+          .filter((s: any) => typeof s === 'string' || s.available !== false)
+          .map((s: any) => typeof s === 'string' ? s : s.time?.substring(0, 5) || s.time);
+        setSlotsForDate(availableSlots);
       } catch (err) {
         console.error("Failed to load slots:", err);
         setSlotsForDate([]);
@@ -118,9 +123,10 @@ export default function BookAppointmentPage() {
   async function handleConfirm() {
     setSubmitting(true);
     try {
+      // patient_id is auto-detected by backend for patient role
       await appointments.create({
         doctor_id: selectedDoctor.id,
-        appointment_date: selectedDate!.toISOString().split("T")[0],
+        date: selectedDate!.toISOString().split("T")[0],
         start_time: selectedTime,
       });
       setConfirmed(true);

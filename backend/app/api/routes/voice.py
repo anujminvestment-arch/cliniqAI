@@ -308,9 +308,7 @@ async def clinic_info(body: ClinicInfoRequest, db: AsyncSession = Depends(get_db
             from app.services.embedding_service import search_knowledge_base
             results = await search_knowledge_base(db, str(body.clinic_id), body.query, limit=3)
             if results:
-                # Combine top results
                 answer = results[0]["content_text"]
-                # If multiple good matches, combine them
                 if len(results) > 1 and results[1].get("similarity", 0) > 0.5:
                     answer += "\n\n" + results[1]["content_text"]
         except Exception:
@@ -318,19 +316,22 @@ async def clinic_info(body: ClinicInfoRequest, db: AsyncSession = Depends(get_db
 
         # Fallback to keyword search if embedding search returns nothing
         if not answer:
-            result = await db.execute(
-                select(KnowledgeBase).where(
-                    or_(KnowledgeBase.clinic_id == body.clinic_id, KnowledgeBase.clinic_id.is_(None)),
-                    KnowledgeBase.is_published == True,
+            try:
+                result = await db.execute(
+                    select(KnowledgeBase).where(
+                        or_(KnowledgeBase.clinic_id == body.clinic_id, KnowledgeBase.clinic_id.is_(None)),
+                        KnowledgeBase.is_published == True,
+                    )
                 )
-            )
-            kb_entries = result.scalars().all()
-            query_lower = body.query.lower()
-            for entry in kb_entries:
-                if any(word in entry.title.lower() or word in entry.content.lower()
-                       for word in query_lower.split()):
-                    answer = entry.content
-                    break
+                kb_entries = result.scalars().all()
+                query_lower = body.query.lower()
+                for entry in kb_entries:
+                    if any(word in entry.title.lower() or word in entry.content.lower()
+                           for word in query_lower.split()):
+                        answer = entry.content
+                        break
+            except Exception:
+                pass
 
     return ClinicInfoResponse(
         name=clinic.name,

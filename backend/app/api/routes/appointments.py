@@ -153,6 +153,21 @@ async def create_appointment(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Auto-detect patient_id for patient role
+    patient_id = body.patient_id
+    if not patient_id and user.role == "patient":
+        result = await db.execute(
+            select(Patient).where(Patient.user_id == user.user_id, Patient.clinic_id == user.clinic_id)
+        )
+        patient = result.scalar_one_or_none()
+        if patient:
+            patient_id = str(patient.id)
+        else:
+            raise HTTPException(status_code=400, detail="No patient profile found. Visit /patients/me first.")
+
+    if not patient_id:
+        raise HTTPException(status_code=400, detail="patient_id is required")
+
     code = f"APT{uuid_mod.uuid4().hex[:6].upper()}"
     end_t = None
     if body.start_time:
@@ -164,7 +179,7 @@ async def create_appointment(
     appointment = Appointment(
         clinic_id=user.clinic_id,
         doctor_id=body.doctor_id,
-        patient_id=body.patient_id,
+        patient_id=patient_id,
         appointment_code=code,
         date=body.date,
         start_time=body.start_time,
@@ -181,13 +196,13 @@ async def create_appointment(
     # Send notification to patient
     try:
         from app.services.notification_service import notify_appointment_booked
-        patient_result = await db.execute(select(Patient).where(Patient.id == body.patient_id))
+        patient_result = await db.execute(select(Patient).where(Patient.id == patient_id))
         patient = patient_result.scalar_one_or_none()
         doctor_result = await db.execute(select(Doctor).where(Doctor.id == body.doctor_id))
         doctor = doctor_result.scalar_one_or_none()
         if patient and doctor and patient.phone:
             await notify_appointment_booked(
-                db, clinic_id=str(user.clinic_id), patient_id=str(body.patient_id),
+                db, clinic_id=str(user.clinic_id), patient_id=str(patient_id),
                 patient_phone=patient.phone, patient_name=patient.name,
                 doctor_name=doctor.name, date=appointment.date.isoformat(),
                 time=appointment.start_time.isoformat(),

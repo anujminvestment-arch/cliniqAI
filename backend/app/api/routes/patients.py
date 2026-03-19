@@ -62,6 +62,28 @@ async def get_my_patient_profile(
         select(Patient).where(Patient.user_id == user.user_id, Patient.clinic_id == user.clinic_id)
     )
     patient = result.scalar_one_or_none()
+
+    # Auto-create patient profile if user has patient role but no Patient record
+    if not patient and user.role == "patient":
+        from app.models.user import User
+        import random
+        user_result = await db.execute(select(User).where(User.id == user.user_id))
+        u = user_result.scalar_one_or_none()
+        if u:
+            code = f"PAT-{__import__('datetime').datetime.now().year}-{random.randint(1000, 9999)}"
+            patient = Patient(
+                clinic_id=user.clinic_id,
+                user_id=user.user_id,
+                name=u.name,
+                phone=u.phone or "",
+                email=u.email,
+                registration_source="portal",
+                unique_code=code,
+            )
+            db.add(patient)
+            await db.commit()
+            await db.refresh(patient)
+
     if not patient:
         raise HTTPException(status_code=404, detail="Patient profile not found")
     return _patient_to_dict(patient)

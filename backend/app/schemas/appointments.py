@@ -6,7 +6,7 @@ from datetime import date as DateType, time as TimeType
 
 class AppointmentCreate(BaseModel):
     doctor_id: str
-    patient_id: str
+    patient_id: Optional[str] = None
     date: DateType
     start_time: TimeType
     duration_minutes: int = 15

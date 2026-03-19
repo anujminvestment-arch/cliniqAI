@@ -97,8 +97,13 @@ async def search_similar(
     if source_type:
         params["source_type"] = source_type
 
-    result = await db.execute(sql_text(sql), params)
-    rows = result.all()
+    try:
+        result = await db.execute(sql_text(sql), params)
+        rows = result.all()
+    except Exception as e:
+        logger.warning(f"Vector search failed (pgvector may not be installed): {e}")
+        await db.rollback()
+        return []
     return [
         {
             "id": str(row[0]),
@@ -171,7 +176,9 @@ async def search_knowledge_base(
     min_similarity: float = 0.3,
 ) -> list[dict]:
     """Semantic search in knowledge base using embeddings."""
-    # First try embedding search
-    results = await search_similar(db, clinic_id, query, source_type="knowledge_base", limit=limit)
-    # Filter by minimum similarity
-    return [r for r in results if r.get("similarity", 0) >= min_similarity]
+    try:
+        results = await search_similar(db, clinic_id, query, source_type="knowledge_base", limit=limit)
+        return [r for r in results if r.get("similarity", 0) >= min_similarity]
+    except Exception as e:
+        logger.warning(f"KB embedding search failed: {e}")
+        return []
