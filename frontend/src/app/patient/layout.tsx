@@ -23,6 +23,7 @@ import {
   Users,
   Star,
   MessageSquare,
+  Phone,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -62,6 +63,7 @@ const navItems = [
   { title: "Book Appointment", href: "/patient/book", icon: CalendarPlus },
   { title: "My Appointments", href: "/patient/appointments", icon: CalendarDays },
   { title: "Video Consult", href: "/patient/telemedicine", icon: Video },
+  { title: "AI Voice Assistant", href: "/patient/voice-call", icon: Phone },
   { title: "Queue Status", href: "/patient/queue", icon: Clock },
   { title: "My Conversations", href: "/patient/conversations", icon: MessageSquare },
   { title: "Health Overview", href: "/patient/health", icon: Heart },

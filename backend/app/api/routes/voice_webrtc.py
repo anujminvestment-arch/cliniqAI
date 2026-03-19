@@ -242,19 +242,33 @@ async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
                 await websocket.send_json({"type": "state", "state": "processing"})
 
             elif msg_type == "audio":
-                # Audio chunk — transcribe with Sarvam/Whisper
+                # Audio chunk — transcribe with Whisper (handles WebM from browser)
                 await websocket.send_json({"type": "state", "state": "processing"})
                 audio_b64 = msg.get("data", "")
                 audio_bytes = base64.b64decode(audio_b64)
 
-                try:
-                    from app.services.stt_router import transcribe
+                if len(audio_bytes) < 1000:
+                    # Too short, probably noise
+                    await websocket.send_json({"type": "state", "state": "listening"})
+                    continue
 
-                    result = await transcribe(
-                        audio_bytes=audio_bytes,
-                        language=state["language"],
-                        filename="recording.webm",
-                    )
+                try:
+                    # Use Whisper directly for WebM from browser (Sarvam doesn't accept WebM)
+                    from app.services.whisper_client import whisper_client
+                    if whisper_client.available:
+                        result = await whisper_client.transcribe(
+                            audio_bytes=audio_bytes,
+                            filename="recording.webm",
+                            language="hi",  # Default to Hindi, Whisper auto-detects
+                        )
+                    else:
+                        # Fallback to Sarvam (needs audio URL, not bytes for some formats)
+                        from app.services.stt_router import transcribe
+                        result = await transcribe(
+                            audio_bytes=audio_bytes,
+                            language=state["language"],
+                            filename="recording.webm",
+                        )
                     user_text = result.get("text", "").strip()
                     if not user_text:
                         await websocket.send_json({"type": "state", "state": "listening"})
@@ -263,7 +277,7 @@ async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
                 except Exception as e:
                     logger.error(f"STT failed: {e}")
                     await websocket.send_json(
-                        {"type": "response", "text": "Maaf kijiye, aawaz sunai nahi di. Kya aap dobara bol sakte hain?"}
+                        {"type": "response", "text": "Maaf kijiye, aawaz sunai nahi di. Kya aap text type karke bhej sakte hain?"}
                     )
                     await websocket.send_json({"type": "state", "state": "listening"})
                     continue
