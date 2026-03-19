@@ -206,6 +206,12 @@ export default function HomePage() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
+              <Link href="/voice-call">
+                <Button variant="outline" size="lg" className="cursor-pointer h-12 px-8 text-sm font-semibold border-accent/30 text-accent hover:bg-accent/5">
+                  <Phone className="mr-2 h-4 w-4" />
+                  Talk to AI Receptionist
+                </Button>
+              </Link>
               <Link href="/login">
                 <Button variant="outline" size="lg" className="cursor-pointer h-12 px-8 text-sm font-semibold">
                   View Demo

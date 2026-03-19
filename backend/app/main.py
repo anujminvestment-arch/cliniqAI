@@ -11,6 +11,7 @@ from app.api.routes import (
     compliance, knowledge_base, analytics, clinics, consultations, follow_ups,
     admin, feedback,
 )
+from app.api.routes.voice_webrtc import router as voice_webrtc_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -52,6 +53,7 @@ app.include_router(consultations.router, prefix="/api")
 app.include_router(follow_ups.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
+app.include_router(voice_webrtc_router, prefix="/api")
 
 
 @app.get("/api/health")
