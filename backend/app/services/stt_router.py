@@ -178,7 +178,7 @@ async def text_to_speech(
         result = await sarvam_client.text_to_speech(
             text=text,
             language=sarvam_lang,
-            speaker=speaker or "meera",
+            speaker=speaker or "anushka",
         )
         return {"audio": result, "provider": "sarvam", "format": "mp3"}
 

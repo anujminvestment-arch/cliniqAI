@@ -80,8 +80,20 @@ class WhisperClient:
         if not self.client:
             raise RuntimeError("OpenAI client not configured (OPENAI_API_KEY missing)")
 
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = filename
+        # OpenAI expects a tuple (filename, file_bytes, content_type)
+        content_type = "audio/webm"
+        if filename.endswith(".wav"):
+            content_type = "audio/wav"
+        elif filename.endswith(".mp3"):
+            content_type = "audio/mpeg"
+        elif filename.endswith(".ogg"):
+            content_type = "audio/ogg"
+        elif filename.endswith(".m4a"):
+            content_type = "audio/mp4"
+        elif filename.endswith(".flac"):
+            content_type = "audio/flac"
+
+        audio_file = (filename, audio_bytes, content_type)
 
         kwargs = {
             "model": model,

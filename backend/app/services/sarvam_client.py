@@ -134,7 +134,7 @@ class SarvamClient:
         self,
         text: str,
         language: str = "hi-IN",
-        speaker: str = "meera",
+        speaker: str = "anushka",
         audio_format: str = "mp3",
         sample_rate: int = 24000,
     ) -> dict:
@@ -157,7 +157,7 @@ class SarvamClient:
                     "inputs": [text[:2500]],
                     "target_language_code": language,
                     "speaker": speaker,
-                    "model": "bulbul:v3",
+                    "model": "bulbul:v2",
                     "audio_format": audio_format,
                     "sample_rate": sample_rate,
                 },
