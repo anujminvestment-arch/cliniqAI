@@ -100,7 +100,10 @@ export default function PatientVoiceCallPage() {
       cleanupRecording();
     };
 
-    ws.onerror = () => setCallState("ended");
+    ws.onerror = (e) => {
+      console.error("WebSocket error:", e);
+      setCallState("ended");
+    };
   }, [clinicInfo]);
 
   // ── Audio Playback ───────────────────────────────────────

@@ -61,5 +61,9 @@ async def health():
     return {"status": "ok", "service": settings.APP_NAME}
 
 
-# Mount Socket.IO on the FastAPI app
-socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
+# Mount Socket.IO on /socket.io/ path only, so FastAPI WebSocket routes work
+sio_asgi = socketio.ASGIApp(sio, socketio_path="/socket.io")
+app.mount("/socket.io", sio_asgi)
+
+# Export app directly — uvicorn should use app, not socket_app
+socket_app = app
