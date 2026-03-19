@@ -1,274 +1,338 @@
-"""WebRTC-style in-app voice calling — patient talks to AI via browser mic."""
+"""WebRTC voice calling — AI receptionist powered by OpenAI GPT-4o-mini."""
 
 import json
 import base64
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time as time_type, timezone, timedelta
+import random
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
-from app.models import Doctor, Patient, Appointment, QueueEntry, SymptomSpecializationMap, Clinic, KnowledgeBase
+from app.core.config import settings
+from app.models import (
+    Doctor, Patient, Appointment, QueueEntry,
+    SymptomSpecializationMap, Clinic, KnowledgeBase,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/voice-call", tags=["voice-call"])
 
-
-def _build_ai_response(intent: str, data: dict) -> str:
-    """Build natural language response based on intent and data."""
-    if intent == "greeting":
-        return "Namaste! City Dental and Multi-Specialty Clinic mein aapka swagat hai. Main aapki kaise madad kar sakta hoon? Aap Hindi ya English mein baat kar sakte hain."
-
-    elif intent == "doctors_found":
-        docs = data.get("doctors", [])
-        if not docs:
-            return "Sorry, is taklif ke liye humare clinic mein koi specialist available nahi hai. Kya aap kuch aur batana chahenge?"
-        doc = docs[0]
-        resp = f"Aapki taklif ke liye {doc['name']} best rahenge. "
-        resp += f"Unki specialization {doc['specialization']} hai. "
-        resp += f"Consultation fee {doc['fee']} rupees hai. "
-        if doc.get("queue_length", 0) > 0:
-            resp += f"Abhi unke paas {doc['queue_length']} patient queue mein hain, lagbhag {doc['estimated_wait']} minute ka wait hoga. "
-        else:
-            resp += "Abhi koi queue nahi hai, aap turant mil sakte hain. "
-        resp += "Kya aap appointment book karna chahenge?"
-        return resp
-
-    elif intent == "appointment_booked":
-        return (
-            f"Aapka appointment book ho gaya hai! Aapka token number {data.get('token_number')} hai. "
-            f"Aapka estimated wait time {data.get('estimated_wait')} minutes hai. "
-            f"Doctor {data.get('doctor_name')} aapko dekhenge. Dhanyavaad!"
-        )
-
-    elif intent == "queue_status":
-        if data.get("patient_position"):
-            return (
-                f"Aapki queue position {data['patient_position']} hai. "
-                f"Aapke aage {data['patient_position'] - 1} patient hain. "
-                f"Estimated wait {data.get('estimated_wait', 'unknown')} minutes hai."
-            )
-        return (
-            f"Abhi queue mein {data.get('queue_length', 0)} patient hain. "
-            f"Current token {data.get('current_token', 'N/A')} chal raha hai."
-        )
-
-    elif intent == "clinic_info":
-        return data.get("answer", "Yeh information abhi available nahi hai. Kya aap kuch aur jaanna chahenge?")
-
-    elif intent == "ask_symptoms":
-        return "Aapko kya taklif hai? Please apni problem batayein, main aapke liye sahi doctor suggest karunga."
-
-    elif intent == "ask_name_phone":
-        return "Appointment book karne ke liye aapka naam aur phone number chahiye. Pehle aapka naam batayein."
-
-    elif intent == "confirmed":
-        return "Theek hai, main aapka appointment book kar raha hoon. Ek minute ruken."
-
-    elif intent == "goodbye":
-        return "Dhanyavaad! Aapka din shubh ho. Agar koi aur sawal ho toh humein zaroor call karein."
-
-    elif intent == "not_understood":
-        return (
-            "Maaf kijiye, main samajh nahi paaya. Kya aap dobara bata sakte hain? "
-            "Aap bol sakte hain: appointment book karna hai, queue status, ya clinic ki information chahiye."
-        )
-
-    return "Main aapki madad ke liye yahan hoon. Kya aap appointment book karna chahenge ya kuch aur jaanna chahenge?"
+# OpenAI client
+try:
+    import openai
+    _openai = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
+except ImportError:
+    _openai = None
 
 
-def _detect_intent(text: str) -> tuple[str, dict]:
-    """Simple intent detection from transcribed text."""
-    text_lower = text.lower().strip()
-
-    # Greeting
-    greetings = ["hello", "hi", "namaste", "namaskar", "haan", "yes"]
-    if any(g == text_lower or text_lower.startswith(g + " ") for g in greetings):
-        return "greeting", {}
-
-    # Goodbye
-    goodbyes = ["bye", "thank", "dhanyavaad", "shukriya", "ok bye", "theek hai"]
-    if any(g in text_lower for g in goodbyes):
-        return "goodbye", {}
-
-    # Queue check
-    queue_words = ["queue", "token", "wait", "kitna time", "kab tak", "mera number", "status", "position"]
-    if any(w in text_lower for w in queue_words):
-        return "check_queue", {}
-
-    # Booking intent
-    book_words = ["book", "appointment", "milna", "dikhana", "doctor", "time", "slot"]
-    if any(w in text_lower for w in book_words):
-        return "want_booking", {}
-
-    # Confirmation
-    confirm_words = ["haan", "yes", "ok", "theek", "kar do", "book kar", "confirmed", "sure"]
-    if any(w in text_lower for w in confirm_words):
-        return "confirm", {}
-
+async def _get_clinic_context(db: AsyncSession, clinic_id: str) -> str:
+    """Build clinic context for AI system prompt."""
     # Clinic info
-    info_words = ["timing", "address", "location", "parking", "insurance", "fee", "charges", "kab", "kahan"]
-    if any(w in text_lower for w in info_words):
-        return "clinic_info", {"query": text}
+    clinic_result = await db.execute(select(Clinic).where(Clinic.id == clinic_id))
+    clinic = clinic_result.scalar_one_or_none()
+    if not clinic:
+        return "Clinic not found."
 
-    # Symptoms (default — treat as symptom description)
-    return "symptoms", {"symptoms_text": text}
-
-
-async def _search_doctors_for_symptoms(db: AsyncSession, clinic_id: str, symptoms_text: str) -> list[dict]:
-    """Find doctors matching symptoms."""
-    words = symptoms_text.lower().split()
-    specializations = set()
-
-    for word in words:
-        result = await db.execute(
-            select(SymptomSpecializationMap.specialization).where(
-                or_(
-                    SymptomSpecializationMap.clinic_id == clinic_id,
-                    SymptomSpecializationMap.clinic_id.is_(None),
-                ),
-                func.lower(SymptomSpecializationMap.symptom_keyword).contains(word),
-            )
-        )
-        for row in result.scalars().all():
-            specializations.add(row)
-
-    if not specializations:
-        specializations.add("General Physician")
-
-    result = await db.execute(
-        select(Doctor).where(
-            Doctor.clinic_id == clinic_id,
-            Doctor.is_active == True,
-            Doctor.specialization.in_(specializations),
-        )
+    # Doctors
+    docs_result = await db.execute(
+        select(Doctor).where(Doctor.clinic_id == clinic_id, Doctor.is_active == True)
     )
-    doctors = result.scalars().all()
+    doctors = docs_result.scalars().all()
 
     today = date.today()
-    doctor_list = []
+    doctor_info = []
     for doc in doctors:
-        queue_result = await db.execute(
+        q_count = (await db.execute(
             select(func.count()).where(
                 QueueEntry.clinic_id == clinic_id,
                 QueueEntry.doctor_id == doc.id,
                 QueueEntry.date == today,
                 QueueEntry.status.in_(["waiting", "in_progress"]),
             )
-        )
-        queue_length = queue_result.scalar() or 0
+        )).scalar() or 0
 
-        doctor_list.append(
-            {
-                "id": str(doc.id),
-                "name": doc.name,
-                "specialization": doc.specialization,
-                "fee": float(doc.consultation_fee) if doc.consultation_fee else None,
-                "queue_length": queue_length,
-                "estimated_wait": queue_length * 15,
-            }
+        doctor_info.append(
+            f"- {doc.name} ({doc.specialization}): Fee ₹{doc.consultation_fee}, "
+            f"Experience {doc.experience_years}yrs, Rating {doc.avg_rating}/5, "
+            f"Queue today: {q_count} patients, Wait ~{q_count * 15}min"
         )
 
-    doctor_list.sort(key=lambda d: (float(d.get("fee", 0) or 0)), reverse=False)
-    return doctor_list
+    # KB entries
+    kb_result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.clinic_id == clinic_id,
+            KnowledgeBase.is_published == True,
+        ).order_by(KnowledgeBase.priority.desc()).limit(15)
+    )
+    kb_entries = kb_result.scalars().all()
+    kb_text = "\n".join([f"- {e.title}: {e.content[:200]}" for e in kb_entries])
+
+    timings = ""
+    if clinic.timings:
+        for day, hours in clinic.timings.items():
+            timings += f"  {day.capitalize()}: {hours.get('open', 'N/A')} - {hours.get('close', 'N/A')}\n"
+
+    return f"""CLINIC: {clinic.name}
+Address: {clinic.address or 'N/A'}
+Phone: {clinic.phone or 'N/A'}
+Timings:
+{timings}
+DOCTORS AVAILABLE TODAY:
+{chr(10).join(doctor_info)}
+
+KNOWLEDGE BASE:
+{kb_text}
+"""
+
+
+def _build_system_prompt(clinic_context: str) -> str:
+    return f"""You are the AI Voice Receptionist for an Indian medical clinic. You speak Hindi and English naturally — use Hinglish (Hindi words in English script) as patients typically speak this way.
+
+{clinic_context}
+
+YOUR CAPABILITIES:
+1. Suggest the right doctor based on patient symptoms
+2. Share doctor fees, availability, queue length, and estimated wait time
+3. Help book appointments (collect patient name, phone, preferred doctor, date, time)
+4. Check queue status — how many patients waiting, current token
+5. Answer clinic questions — timings, location, parking, services, fees, insurance
+6. Cancel or reschedule appointments
+
+RULES:
+- Be warm, professional, and empathetic
+- Keep responses SHORT (2-3 sentences max) — this is voice, not text
+- When patient describes symptoms, suggest the best doctor from the list above
+- Always mention the consultation fee and current queue wait
+- If patient wants to book, ask for their name and phone number
+- Never provide medical advice — only route to the right doctor
+- If you can't understand, ask the patient to repeat clearly
+- Respond in the same language the patient uses (Hindi → Hindi, English → English)
+- Use "Aap" (respectful) not "Tum"
+
+AVAILABLE FUNCTIONS:
+When you need to perform an action, include a JSON block in your response like this:
+[ACTION: {{"action": "search_doctors", "symptoms": ["tooth pain"]}}]
+[ACTION: {{"action": "book_appointment", "doctor_id": "xxx", "patient_name": "xxx", "patient_phone": "+91xxx", "date": "2026-03-20", "time": "10:00"}}]
+[ACTION: {{"action": "check_queue", "doctor_id": "xxx"}}]
+
+Only include an action if you actually need to perform one. For normal conversation, just respond naturally."""
+
+
+async def _call_openai(messages: list[dict], system_prompt: str) -> str:
+    """Call OpenAI GPT-4o-mini for conversation."""
+    if not _openai:
+        return "AI service not configured. Please type your query."
+
+    try:
+        response = await _openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": system_prompt}] + messages,
+            max_tokens=300,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"OpenAI call failed: {e}")
+        return "Maaf kijiye, abhi technical issue hai. Kya aap thodi der baad try kar sakte hain?"
+
+
+async def _execute_action(db: AsyncSession, clinic_id: str, action_data: dict) -> str:
+    """Execute an action from the AI's response and return result text."""
+    action = action_data.get("action")
+    today = date.today()
+
+    if action == "search_doctors":
+        symptoms = action_data.get("symptoms", [])
+        specializations = set()
+
+        for symptom in symptoms:
+            result = await db.execute(
+                select(SymptomSpecializationMap.specialization).where(
+                    or_(
+                        SymptomSpecializationMap.clinic_id == clinic_id,
+                        SymptomSpecializationMap.clinic_id.is_(None),
+                    ),
+                    func.lower(SymptomSpecializationMap.symptom_keyword).contains(symptom.lower()),
+                )
+            )
+            for row in result.scalars().all():
+                specializations.add(row)
+
+        if not specializations:
+            specializations.add("General Physician")
+
+        result = await db.execute(
+            select(Doctor).where(
+                Doctor.clinic_id == clinic_id,
+                Doctor.is_active == True,
+                Doctor.specialization.in_(specializations),
+            )
+        )
+        doctors = result.scalars().all()
+        if doctors:
+            doc = doctors[0]
+            q = (await db.execute(
+                select(func.count()).where(
+                    QueueEntry.clinic_id == clinic_id,
+                    QueueEntry.doctor_id == doc.id,
+                    QueueEntry.date == today,
+                    QueueEntry.status.in_(["waiting", "in_progress"]),
+                )
+            )).scalar() or 0
+            return f"Found: {doc.name} ({doc.specialization}), Fee ₹{doc.consultation_fee}, Queue: {q}, Wait: {q*15}min"
+        return "No matching doctor found."
+
+    elif action == "book_appointment":
+        doctor_id = action_data.get("doctor_id")
+        patient_name = action_data.get("patient_name", "Patient")
+        patient_phone = action_data.get("patient_phone", "")
+        appt_date = action_data.get("date", str(today))
+        appt_time = action_data.get("time", "10:00")
+
+        if not doctor_id:
+            return "Doctor not selected. Please choose a doctor first."
+
+        # Find or create patient
+        patient_result = await db.execute(
+            select(Patient).where(Patient.clinic_id == clinic_id, Patient.phone == patient_phone)
+        )
+        patient = patient_result.scalar_one_or_none()
+        if not patient:
+            code = f"PAT-{datetime.now().year}-{random.randint(1000, 9999)}"
+            patient = Patient(
+                clinic_id=clinic_id, name=patient_name, phone=patient_phone,
+                registration_source="ai_call", unique_code=code,
+            )
+            db.add(patient)
+            await db.flush()
+
+        # Create appointment
+        apt_code = f"APT-{datetime.now().year}-{random.randint(1000, 9999)}"
+        appt = Appointment(
+            clinic_id=clinic_id, doctor_id=doctor_id, patient_id=patient.id,
+            appointment_code=apt_code, date=date.fromisoformat(appt_date),
+            start_time=time_type.fromisoformat(appt_time + ":00" if len(appt_time) == 5 else appt_time),
+            booking_source="ai_call",
+        )
+        db.add(appt)
+        await db.flush()
+
+        # Create queue entry
+        max_token = (await db.execute(
+            select(func.max(QueueEntry.token_number)).where(
+                QueueEntry.clinic_id == clinic_id,
+                QueueEntry.doctor_id == doctor_id,
+                QueueEntry.date == date.fromisoformat(appt_date),
+            )
+        )).scalar() or 0
+
+        q_count = (await db.execute(
+            select(func.count()).where(
+                QueueEntry.clinic_id == clinic_id,
+                QueueEntry.doctor_id == doctor_id,
+                QueueEntry.date == date.fromisoformat(appt_date),
+                QueueEntry.status.in_(["waiting", "in_progress"]),
+            )
+        )).scalar() or 0
+
+        queue_entry = QueueEntry(
+            clinic_id=clinic_id, doctor_id=doctor_id, patient_id=patient.id,
+            appointment_id=appt.id, date=date.fromisoformat(appt_date),
+            token_number=max_token + 1, position=q_count + 1,
+            estimated_wait=q_count * 15,
+        )
+        db.add(queue_entry)
+        await db.commit()
+
+        doc_result = await db.execute(select(Doctor.name).where(Doctor.id == doctor_id))
+        doc_name = doc_result.scalar() or "Doctor"
+
+        return f"BOOKED! Code: {apt_code}, Token #{max_token + 1}, Doctor: {doc_name}, Date: {appt_date}, Time: {appt_time}, Wait: ~{q_count * 15}min"
+
+    elif action == "check_queue":
+        doctor_id = action_data.get("doctor_id")
+        conditions = [QueueEntry.clinic_id == clinic_id, QueueEntry.date == today, QueueEntry.status.in_(["waiting", "in_progress"])]
+        if doctor_id:
+            conditions.append(QueueEntry.doctor_id == doctor_id)
+
+        q_count = (await db.execute(select(func.count()).where(*conditions))).scalar() or 0
+        current = (await db.execute(
+            select(QueueEntry.token_number).where(
+                QueueEntry.clinic_id == clinic_id, QueueEntry.date == today, QueueEntry.status == "in_progress",
+            ).limit(1)
+        )).scalar()
+
+        return f"Queue: {q_count} patients waiting. Current token: {current or 'None'}. Wait: ~{q_count * 15}min."
+
+    return "Action not recognized."
 
 
 @router.websocket("/ws/{clinic_id}")
 async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
-    """WebSocket endpoint for browser-based voice calling.
-
-    Protocol:
-    Client sends: {"type": "audio", "data": "<base64 audio chunk>", "format": "webm"}
-                  {"type": "text", "data": "typed message"}  (fallback text input)
-                  {"type": "end_turn"} (user finished speaking)
-
-    Server sends: {"type": "transcript", "text": "what user said"}
-                  {"type": "response", "text": "AI response text"}
-                  {"type": "audio", "data": "<base64 audio>", "format": "mp3"}
-                  {"type": "state", "state": "listening|processing|speaking"}
-                  {"type": "doctors", "data": [...]} (doctor suggestions)
-                  {"type": "booked", "data": {...}} (appointment confirmed)
-    """
+    """WebSocket endpoint for AI-powered voice calling."""
     await websocket.accept()
 
-    # Conversation state
-    state = {
-        "clinic_id": clinic_id,
-        "language": "hi-IN",
-        "suggested_doctor": None,
-        "patient_name": None,
-        "patient_phone": None,
-        "turn": 0,
-    }
+    # Build context and conversation history
+    conversation: list[dict] = []
+    system_prompt = ""
 
     try:
-        # Send greeting
-        greeting = _build_ai_response("greeting", {})
-        await websocket.send_json({"type": "response", "text": greeting})
+        # Load clinic context
+        async with AsyncSessionLocal() as db:
+            clinic_context = await _get_clinic_context(db, clinic_id)
+            system_prompt = _build_system_prompt(clinic_context)
+
+        # Get AI greeting
+        greeting_response = await _call_openai(
+            [{"role": "user", "content": "Patient just connected. Greet them warmly in Hinglish."}],
+            system_prompt,
+        )
+        # Clean any action tags from greeting
+        greeting_clean = greeting_response.split("[ACTION")[0].strip()
+        conversation.append({"role": "assistant", "content": greeting_clean})
+
+        await websocket.send_json({"type": "response", "text": greeting_clean})
         await websocket.send_json({"type": "state", "state": "listening"})
 
-        # Try to generate TTS for greeting
+        # Try TTS
         try:
             from app.services.sarvam_client import sarvam_client
-
             if sarvam_client.available:
-                tts_result = await sarvam_client.text_to_speech(greeting, language="hi-IN")
-                if tts_result and "audios" in tts_result and tts_result["audios"]:
-                    await websocket.send_json(
-                        {
-                            "type": "audio",
-                            "data": tts_result["audios"][0],
-                            "format": "mp3",
-                        }
-                    )
+                tts = await sarvam_client.text_to_speech(greeting_clean, language="hi-IN")
+                if tts and "audios" in tts and tts["audios"]:
+                    await websocket.send_json({"type": "audio", "data": tts["audios"][0], "format": "mp3"})
         except Exception as e:
-            logger.warning(f"TTS greeting failed: {e}")
+            logger.warning(f"TTS failed: {e}")
 
         while True:
             raw = await websocket.receive_text()
             msg = json.loads(raw)
             msg_type = msg.get("type")
+            user_text = ""
 
             if msg_type == "text":
-                # Direct text input (typed or pre-transcribed)
                 user_text = msg.get("data", "").strip()
                 if not user_text:
                     continue
-
                 await websocket.send_json({"type": "transcript", "text": user_text})
-                await websocket.send_json({"type": "state", "state": "processing"})
 
             elif msg_type == "audio":
-                # Audio chunk — transcribe with Whisper (handles WebM from browser)
                 await websocket.send_json({"type": "state", "state": "processing"})
-                audio_b64 = msg.get("data", "")
-                audio_bytes = base64.b64decode(audio_b64)
-
+                audio_bytes = base64.b64decode(msg.get("data", ""))
                 if len(audio_bytes) < 1000:
-                    # Too short, probably noise
                     await websocket.send_json({"type": "state", "state": "listening"})
                     continue
-
                 try:
-                    # Use Whisper directly for WebM from browser (Sarvam doesn't accept WebM)
                     from app.services.whisper_client import whisper_client
                     if whisper_client.available:
-                        result = await whisper_client.transcribe(
-                            audio_bytes=audio_bytes,
-                            filename="recording.webm",
-                            language="hi",  # Default to Hindi, Whisper auto-detects
-                        )
+                        result = await whisper_client.transcribe(audio_bytes=audio_bytes, filename="recording.webm")
                     else:
-                        # Fallback to Sarvam (needs audio URL, not bytes for some formats)
                         from app.services.stt_router import transcribe
-                        result = await transcribe(
-                            audio_bytes=audio_bytes,
-                            language=state["language"],
-                            filename="recording.webm",
-                        )
+                        result = await transcribe(audio_bytes=audio_bytes, filename="recording.webm")
                     user_text = result.get("text", "").strip()
                     if not user_text:
                         await websocket.send_json({"type": "state", "state": "listening"})
@@ -276,143 +340,61 @@ async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
                     await websocket.send_json({"type": "transcript", "text": user_text})
                 except Exception as e:
                     logger.error(f"STT failed: {e}")
-                    await websocket.send_json(
-                        {"type": "response", "text": "Maaf kijiye, aawaz sunai nahi di. Kya aap text type karke bhej sakte hain?"}
-                    )
+                    await websocket.send_json({"type": "response", "text": "Aawaz sunai nahi di. Please type karke bhejein."})
                     await websocket.send_json({"type": "state", "state": "listening"})
                     continue
             else:
                 continue
 
-            # Process the user's text
-            state["turn"] += 1
-            intent, intent_data = _detect_intent(user_text)
-            response_text = ""
-            extra_data = {}
+            await websocket.send_json({"type": "state", "state": "processing"})
 
-            async with AsyncSessionLocal() as db:
-                if intent == "greeting":
-                    response_text = _build_ai_response("ask_symptoms", {})
+            # Add to conversation
+            conversation.append({"role": "user", "content": user_text})
 
-                elif intent == "symptoms":
-                    doctors = await _search_doctors_for_symptoms(
-                        db, clinic_id, intent_data.get("symptoms_text", "")
-                    )
-                    state["suggested_doctor"] = doctors[0] if doctors else None
-                    response_text = _build_ai_response("doctors_found", {"doctors": doctors})
-                    if doctors:
-                        extra_data = {"type": "doctors", "data": doctors}
+            # Call OpenAI
+            ai_response = await _call_openai(conversation, system_prompt)
 
-                elif intent == "want_booking":
-                    if state["suggested_doctor"]:
-                        response_text = "Aapka naam aur phone number batayein, main appointment book kar dunga."
-                    else:
-                        response_text = _build_ai_response("ask_symptoms", {})
+            # Check for actions in the response
+            response_text = ai_response
+            if "[ACTION:" in ai_response:
+                parts = ai_response.split("[ACTION:")
+                response_text = parts[0].strip()
+                for part in parts[1:]:
+                    try:
+                        action_json = part.split("]")[0].strip()
+                        action_data = json.loads(action_json)
+                        async with AsyncSessionLocal() as db:
+                            action_result = await _execute_action(db, clinic_id, action_data)
+                        # Feed action result back to AI for natural response
+                        conversation.append({"role": "assistant", "content": response_text})
+                        conversation.append({"role": "system", "content": f"Action result: {action_result}"})
+                        follow_up = await _call_openai(conversation, system_prompt)
+                        response_text = follow_up.split("[ACTION")[0].strip()
+                    except Exception as e:
+                        logger.error(f"Action failed: {e}")
 
-                elif intent == "confirm":
-                    if state["suggested_doctor"]:
-                        response_text = _build_ai_response(
-                            "appointment_booked",
-                            {
-                                "token_number": 1,
-                                "estimated_wait": state["suggested_doctor"].get("estimated_wait", 0),
-                                "doctor_name": state["suggested_doctor"].get("name", ""),
-                            },
-                        )
-                    else:
-                        response_text = _build_ai_response("ask_symptoms", {})
+            conversation.append({"role": "assistant", "content": response_text})
 
-                elif intent == "check_queue":
-                    queue_count = (
-                        await db.execute(
-                            select(func.count()).where(
-                                QueueEntry.clinic_id == clinic_id,
-                                QueueEntry.date == date.today(),
-                                QueueEntry.status.in_(["waiting", "in_progress"]),
-                            )
-                        )
-                    ).scalar() or 0
+            # Keep conversation manageable (last 20 messages)
+            if len(conversation) > 20:
+                conversation = conversation[-20:]
 
-                    current = (
-                        await db.execute(
-                            select(QueueEntry.token_number)
-                            .where(
-                                QueueEntry.clinic_id == clinic_id,
-                                QueueEntry.date == date.today(),
-                                QueueEntry.status == "in_progress",
-                            )
-                            .limit(1)
-                        )
-                    ).scalar()
-
-                    response_text = _build_ai_response(
-                        "queue_status",
-                        {
-                            "queue_length": queue_count,
-                            "current_token": current,
-                        },
-                    )
-
-                elif intent == "clinic_info":
-                    query = intent_data.get("query", "")
-                    result = await db.execute(
-                        select(KnowledgeBase).where(
-                            or_(KnowledgeBase.clinic_id == clinic_id, KnowledgeBase.clinic_id.is_(None)),
-                            KnowledgeBase.is_published == True,
-                        )
-                    )
-                    kb_entries = result.scalars().all()
-                    answer = None
-                    for entry in kb_entries:
-                        if any(
-                            w in entry.title.lower() or w in entry.content.lower()
-                            for w in query.lower().split()
-                        ):
-                            answer = entry.content
-                            break
-                    response_text = _build_ai_response("clinic_info", {"answer": answer})
-
-                elif intent == "goodbye":
-                    response_text = _build_ai_response("goodbye", {})
-
-                else:
-                    response_text = _build_ai_response("not_understood", {})
-
-            # Send text response
             await websocket.send_json({"type": "response", "text": response_text})
 
-            # Send extra data if any
-            if extra_data:
-                await websocket.send_json(extra_data)
-
-            # Generate TTS
+            # TTS
             try:
                 from app.services.sarvam_client import sarvam_client
-
-                if sarvam_client.available:
-                    tts_result = await sarvam_client.text_to_speech(
-                        response_text, language=state["language"]
-                    )
-                    if tts_result and "audios" in tts_result and tts_result["audios"]:
-                        await websocket.send_json(
-                            {
-                                "type": "audio",
-                                "data": tts_result["audios"][0],
-                                "format": "mp3",
-                            }
-                        )
+                if sarvam_client.available and len(response_text) < 500:
+                    tts = await sarvam_client.text_to_speech(response_text, language="hi-IN")
+                    if tts and "audios" in tts and tts["audios"]:
+                        await websocket.send_json({"type": "audio", "data": tts["audios"][0], "format": "mp3"})
             except Exception as e:
                 logger.warning(f"TTS failed: {e}")
 
             await websocket.send_json({"type": "state", "state": "listening"})
 
-            # Close if goodbye
-            if intent == "goodbye":
-                await websocket.close()
-                break
-
     except WebSocketDisconnect:
-        logger.info(f"Voice call disconnected for clinic {clinic_id}")
+        logger.info(f"Voice call disconnected: {clinic_id}")
     except Exception as e:
         logger.error(f"Voice call error: {e}")
         try:
