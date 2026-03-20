@@ -55,10 +55,20 @@ async def _get_clinic_context(db: AsyncSession, clinic_id: str) -> str:
             )
         )).scalar() or 0
 
+        schedule_str = ""
+        if doc.schedule:
+            schedule_parts = [f"{d}: {h.get('start','?')}-{h.get('end','?')}" for d, h in doc.schedule.items() if isinstance(h, dict)]
+            schedule_str = f", Schedule: {', '.join(schedule_parts)}"
+
+        treatments_str = ""
+        if doc.treatments:
+            treatments_str = f", Treatments: {', '.join(doc.treatments[:5])}"
+
         doctor_info.append(
             f"- ID:{doc.id} | {doc.name} ({doc.specialization}): Fee ₹{doc.consultation_fee}, "
-            f"Experience {doc.experience_years}yrs, Rating {doc.avg_rating}/5, "
-            f"Queue today: {q_count} patients, Wait ~{q_count * 15}min"
+            f"Exp {doc.experience_years}yrs, Rating {doc.avg_rating}/5, "
+            f"Queue: {q_count} patients (~{q_count * 15}min wait)"
+            f"{schedule_str}{treatments_str}"
         )
 
     # KB entries
@@ -372,3 +382,38 @@ async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
             await websocket.close()
         except Exception:
             pass
+    finally:
+        # Save conversation to database
+        if conversation:
+            try:
+                from app.models.conversation import Conversation, ConversationMessage
+                async with AsyncSessionLocal() as db:
+                    # Build transcript text
+                    transcript_text = "\n".join(
+                        f"{'Patient' if m['role'] == 'user' else 'AI'}: {m['content']}"
+                        for m in conversation
+                    )
+                    conv = Conversation(
+                        clinic_id=clinic_id,
+                        channel="webrtc",
+                        status="completed",
+                        transcript=transcript_text,
+                        language="hi-IN",
+                        stt_provider="whisper",
+                        extra_data={"turns": len(conversation)},
+                    )
+                    db.add(conv)
+                    await db.flush()
+
+                    # Save individual messages
+                    for msg in conversation:
+                        db.add(ConversationMessage(
+                            conversation_id=conv.id,
+                            role=msg["role"],
+                            content=msg["content"],
+                        ))
+
+                    await db.commit()
+                    logger.info(f"Saved conversation {conv.id} with {len(conversation)} messages")
+            except Exception as e:
+                logger.error(f"Failed to save conversation: {e}")

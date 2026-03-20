@@ -44,6 +44,8 @@ async def list_doctors(
                 "qualification": d.qualification,
                 "experience_years": d.experience_years,
                 "consultation_fee": float(d.consultation_fee) if d.consultation_fee else None,
+                "schedule": d.schedule,
+                "treatments": d.treatments,
                 "avg_rating": float(d.avg_rating) if d.avg_rating else 0,
                 "total_patients": d.total_patients,
                 "phone": d.phone,

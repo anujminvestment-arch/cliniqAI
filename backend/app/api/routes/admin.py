@@ -514,6 +514,8 @@ async def onboard_clinic(
             phone=doc_data.get("phone"),
             email=doc_email,
             consultation_fee=consultation_fee,
+            schedule=doc_data.get("schedule"),  # Per-clinic timings
+            treatments=doc_data.get("treatments"),  # List of treatments
         )
         db.add(doctor)
         await db.flush()
