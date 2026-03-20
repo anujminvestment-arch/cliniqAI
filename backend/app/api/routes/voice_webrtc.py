@@ -56,7 +56,7 @@ async def _get_clinic_context(db: AsyncSession, clinic_id: str) -> str:
         )).scalar() or 0
 
         doctor_info.append(
-            f"- {doc.name} ({doc.specialization}): Fee ₹{doc.consultation_fee}, "
+            f"- ID:{doc.id} | {doc.name} ({doc.specialization}): Fee ₹{doc.consultation_fee}, "
             f"Experience {doc.experience_years}yrs, Rating {doc.avg_rating}/5, "
             f"Queue today: {q_count} patients, Wait ~{q_count * 15}min"
         )
@@ -90,36 +90,21 @@ KNOWLEDGE BASE:
 
 
 def _build_system_prompt(clinic_context: str) -> str:
-    return f"""You are the AI Voice Receptionist for an Indian medical clinic. You speak Hindi and English naturally — use Hinglish (Hindi words in English script) as patients typically speak this way.
+    return f"""You are the AI Voice Receptionist for an Indian medical clinic. You speak Hindi and English naturally — use Hinglish (Hindi words in English script).
 
 {clinic_context}
 
-YOUR CAPABILITIES:
-1. Suggest the right doctor based on patient symptoms
-2. Share doctor fees, availability, queue length, and estimated wait time
-3. Help book appointments (collect patient name, phone, preferred doctor, date, time)
-4. Check queue status — how many patients waiting, current token
-5. Answer clinic questions — timings, location, parking, services, fees, insurance
-6. Cancel or reschedule appointments
-
 RULES:
-- Be warm, professional, and empathetic
-- Keep responses SHORT (2-3 sentences max) — this is voice, not text
-- When patient describes symptoms, suggest the best doctor from the list above
-- Always mention the consultation fee and current queue wait
-- If patient wants to book, ask for their name and phone number
-- Never provide medical advice — only route to the right doctor
-- If you can't understand, ask the patient to repeat clearly
-- Respond in the same language the patient uses (Hindi → Hindi, English → English)
+- Keep responses SHORT (2-3 sentences max) — this is a voice conversation
+- When patient describes symptoms, suggest the best matching doctor from the list above. Include their name, specialization, fee, and current queue wait time.
+- If patient wants to book, collect: name, phone number, preferred date and time
+- Never provide medical advice — only suggest the right doctor
+- Respond in the same language the patient uses
 - Use "Aap" (respectful) not "Tum"
-
-AVAILABLE FUNCTIONS:
-When you need to perform an action, include a JSON block in your response like this:
-[ACTION: {{"action": "search_doctors", "symptoms": ["tooth pain"]}}]
-[ACTION: {{"action": "book_appointment", "doctor_id": "xxx", "patient_name": "xxx", "patient_phone": "+91xxx", "date": "2026-03-20", "time": "10:00"}}]
-[ACTION: {{"action": "check_queue", "doctor_id": "xxx"}}]
-
-Only include an action if you actually need to perform one. For normal conversation, just respond naturally."""
+- Be warm and empathetic
+- You already have all clinic data above — use it directly to answer. Do NOT say "I need to check" — the data is right there.
+- For booking requests, say you will book and confirm the details. Include the doctor name, date, time in your confirmation.
+- IMPORTANT: Always respond with text. Never output just action tags or empty responses."""
 
 
 async def _call_openai(messages: list[dict], system_prompt: str) -> str:
@@ -354,24 +339,10 @@ async def voice_call_websocket(websocket: WebSocket, clinic_id: str):
             # Call OpenAI
             ai_response = await _call_openai(conversation, system_prompt)
 
-            # Check for actions in the response
-            response_text = ai_response
-            if "[ACTION:" in ai_response:
-                parts = ai_response.split("[ACTION:")
-                response_text = parts[0].strip()
-                for part in parts[1:]:
-                    try:
-                        action_json = part.split("]")[0].strip()
-                        action_data = json.loads(action_json)
-                        async with AsyncSessionLocal() as db:
-                            action_result = await _execute_action(db, clinic_id, action_data)
-                        # Feed action result back to AI for natural response
-                        conversation.append({"role": "assistant", "content": response_text})
-                        conversation.append({"role": "system", "content": f"Action result: {action_result}"})
-                        follow_up = await _call_openai(conversation, system_prompt)
-                        response_text = follow_up.split("[ACTION")[0].strip()
-                    except Exception as e:
-                        logger.error(f"Action failed: {e}")
+            # Clean response — remove any accidental action tags
+            response_text = ai_response.split("[ACTION")[0].strip() if "[ACTION" in ai_response else ai_response.strip()
+            if not response_text:
+                response_text = "Main aapki baat samajh gaya. Kya aap thoda aur detail bata sakte hain?"
 
             conversation.append({"role": "assistant", "content": response_text})
 
